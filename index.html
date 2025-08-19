@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pixel Brush — UI Hover Dots</title>
+  <style>
+    :root{
+      --gap:12px;
+    }
+    *{ box-sizing: border-box; }
+    html,body{ margin:0; height:100%; background:#0f172a; color:#e5e7eb;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      overflow:hidden; }
+    .app{ height:100%; display:flex; flex-direction:column; padding:var(--gap); gap:var(--gap); }
+
+    /* HEADER stile mobile */
+    .topbar{
+      display:grid; grid-template-columns:40px 1fr 40px; align-items:center;
+      gap:8px; padding:8px 6px; border:1px solid #334155; border-radius:12px; background:#0b1220;
+      flex-shrink:0;
+    }
+    .iconbtn{ display:inline-grid; place-items:center; width:36px; height:36px; border-radius:10px;
+      border:1px solid #334155; background:#0b1220; cursor:pointer; color:white; font-size:18px; }
+    .iconbtn:hover{ background:#10192c; }
+    .username{ text-align:center; font-weight:700; }
+    .kebab{ font-size:22px; line-height:0; color:white; }
+
+    /* Quick menu */
+    .menu{ position:relative; justify-self:end; }
+    .menu .panel{
+      position:absolute; right:0; top:44px; min-width:180px; padding:10px; border:1px solid #334155;
+      background:#0b1220; border-radius:12px; display:none; z-index:10;
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    .menu.open .panel{ display:block; }
+    .row{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
+    input[type="color"]{ inline-size:46px; block-size:32px; padding:0; border:none; background:transparent; }
+
+    /* Controls */
+    .controls{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex-shrink:0; }
+    .pill{ padding:6px 10px; border:1px solid #334155; border-radius:999px; background:#0b1220; display:inline-flex; gap:6px; align-items:center; }
+    .ok{ color:#34d399; } .warn{ color:#fbbf24; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+    .btn{ padding:8px 12px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer; }
+    .btn:hover{ background:#10192c; }
+
+    /* STAGE */
+    .stage{ position:relative; flex:1; border:1px solid #334155; border-radius:12px; overflow:hidden; background:#0b1220; }
+    canvas{ position:absolute; inset:0; width:100%; height:100%; image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="iconbtn" id="back" title="Indietro" aria-label="Indietro">⟵</button>
+      <div class="username" id="user">nomeutente</div>
+      <div class="menu" id="menu">
+        <button class="iconbtn kebab" aria-haspopup="true" aria-expanded="false" title="Menu rapido">⋮</button>
+        <div class="panel" role="menu">
+          <div class="row"><span>Cambia colore</span><input type="color" id="color" value="#00ffaa"></div>
+          <div class="row" style="margin-top:8px"><label>Spaziatura puntini
+            <input type="range" id="spacing" min="10" max="40" step="2" value="18"></label>
+          </div>
+          <div class="row" style="margin-top:8px"><label>Raggio effetto
+            <input type="range" id="radius" min="20" max="160" step="4" value="90"></label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seconda riga -->
+    <div class="controls">
+      <span class="pill">Stanza: <code class="mono" id="roomLbl"></code>
+        <button class="btn" id="copyRoom">Copia URL</button></span>
+      <span class="pill">Connesso: <b id="rtFlag" class="warn">OFF</b></span>
+      <button class="btn" id="cfg" style="display:none">Config Firebase</button>
+    </div>
+
+    <!-- Canvas -->
+    <div class="stage">
+      <canvas id="dots"></canvas>
+    </div>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <script>
+    // === Config Firebase demo (rimessa per il realtime) ===
+    window.FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
+      authDomain: "interlinked-demo.firebaseapp.com",
+      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
+      projectId: "interlinked-demo",
+      storageBucket: "interlinked-demo.firebasestorage.app",
+      messagingSenderId: "85117709871",
+      appId: "1:85117709871:web:a154569112f845e2bfe0da",
+      measurementId: "G-RBLX6ZQD01"
+    };
+  </script>
+
+  <script>
+  /************ UTIL ************/
+  const $ = s => document.querySelector(s);
+  const clamp = (n,a,b)=>Math.max(a,Math.min(b,n));
+  const rndId = () => Math.random().toString(36).slice(2,10);
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function hexToRgb(h){
+    const x = h.replace('#','');
+    return { r:parseInt(x.slice(0,2),16), g:parseInt(x.slice(2,4),16), b:parseInt(x.slice(4,6),16) };
+  }
+  function rgbStr({r,g,b,a=1}){ return `rgba(${r|0},${g|0},${b|0},${a})`; }
+
+  /************ STATE ************/
+  const canvas = $('#dots');
+  const ctx = canvas.getContext('2d',{ alpha:true });
+  ctx.imageSmoothingEnabled = false;
+
+  let zonePath = new Path2D();
+  let points = [];
+
+  const menu = $('#menu');
+  const colorEl = $('#color');
+  const spacingEl = $('#spacing');
+  const radiusEl  = $('#radius');
+  const copyBtn   = $('#copyRoom');
+  const rtFlag    = $('#rtFlag');
+  const roomLbl   = $('#roomLbl');
+
+  let COLOR = colorEl.value;
+  let SPACING = parseInt(spacingEl.value,10);
+  let BASE = 2;
+  let RADIUS = parseInt(radiusEl.value,10);
+
+  const CLIENT = 'c_' + rndId();
+  const ROOM = (location.hash && location.hash.slice(1)) || ('room_' + rndId());
+  if (!location.hash) history.replaceState(null, '', location.pathname + '#' + ROOM);
+  roomLbl.textContent = ROOM;
+
+  let RT = { enabled:false, db:null };
+  const hovers = new Map();
+
+  function resizeCanvas(){
+    canvas.width  = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    buildZone();
+  }
+
+  /************ ZONA + PUNTINI ************/
+  function buildZone(){
+    zonePath = new Path2D();
+    const x=0, y=0, w=canvas.width, h=canvas.height, r=20;
+    zonePath.moveTo(x+r,y);
+    zonePath.arcTo(x+w,y,x+w,y+r,r);
+    zonePath.arcTo(x+w,y+h,x+w-r,y+h,r);
+    zonePath.arcTo(x,y+h,x,y+h-r,r);
+    zonePath.arcTo(x,y,x+r,y,r);
+
+    points = [];
+    for (let py = y; py<=y+h; py+=SPACING){
+      for (let px = x; px<=x+w; px+=SPACING){
+        points.push({x:px, y:py, inside: ctx.isPointInPath(zonePath, px, py)});
+      }
+    }
+  }
+
+  function drawFrame(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.save();
+    ctx.fillStyle = '#0b1220';
+    ctx.fill(zonePath);
+    ctx.restore();
+
+    const now = performance.now();
+    const active = [];
+    hovers.forEach((h, id) => {
+      if (now - h.ts < 500) active.push(h); else hovers.delete(id);
+    });
+
+    const col = hexToRgb(COLOR);
+    ctx.save();
+    for (const p of points){
+      let t = 0;
+      for (const h of active){
+        const dx = p.x - h.x, dy = p.y - h.y;
+        const d = Math.hypot(dx, dy);
+        if (d < h.r){
+          const k = 1 - (d / h.r);
+          t = Math.max(t, k*k);
+        }
+      }
+      const size = BASE + t * (BASE*3.2);
+      let color;
+      if (p.inside){
+        color = t>0 ? rgbStr({ r:lerp(255,col.r,t), g:lerp(255,col.g,t), b:lerp(255,col.b,t) }) : 'rgba(255,255,255,0.85)';
+      } else {
+        color = t>0 ? 'rgba(255,0,0,0.9)' : 'rgba(255,0,0,0.3)';
+      }
+      ctx.beginPath();
+      ctx.arc(p.x+0.5, p.y+0.5, size, 0, Math.PI*2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+    ctx.restore();
+
+    requestAnimationFrame(drawFrame);
+  }
+
+  /************ INPUT ************/
+  function toCanvasPos(evt){
+    const r = canvas.getBoundingClientRect();
+    const clientX = (evt.clientX ?? evt.touches?.[0]?.clientX);
+    const clientY = (evt.clientY ?? evt.touches?.[0]?.clientY);
+    const x = (clientX - r.left) * (canvas.width / r.width);
+    const y = (clientY - r.top)  * (canvas.height / r.height);
+    return { x: clamp(x,0,canvas.width-1), y: clamp(y,0,canvas.height-1) };
+  }
+
+  function sendHover(x,y){
+    hovers.set(CLIENT, { x, y, r:RADIUS, color: COLOR, ts: performance.now() });
+    if (RT.enabled) {
+      RT.db.ref('rooms/'+ROOM+'/events').push({
+        type:'hover', payload:{x, y, r:RADIUS, c: COLOR}, client: CLIENT, ts: Date.now()
+      });
+    }
+  }
+
+  canvas.addEventListener('pointermove', (e)=>{
+    const p = toCanvasPos(e);
+    sendHover(p.x, p.y);
+  });
+  canvas.addEventListener('touchmove', (e)=>{
+    const p = toCanvasPos(e);
+    sendHover(p.x, p.y);
+  }, {passive:true});
+  canvas.addEventListener('pointerleave', ()=>{ hovers.delete(CLIENT); });
+
+  /************ UI ************/
+  menu.querySelector('button.kebab').addEventListener('click', ()=>{
+    menu.classList.toggle('open');
+    menu.querySelector('button.kebab').setAttribute('aria-expanded', menu.classList.contains('open'));
+  });
+  document.addEventListener('click', (e)=>{ if (!menu.contains(e.target)) menu.classList.remove('open'); });
+
+  colorEl.addEventListener('input', e=> COLOR = e.target.value);
+  spacingEl.addEventListener('input', e=>{ SPACING = parseInt(e.target.value,10); buildZone(); });
+  radiusEl.addEventListener('input', e=>{ RADIUS = parseInt(e.target.value,10); });
+
+  copyBtn.addEventListener('click', async ()=>{
+    await navigator.clipboard.writeText(location.href);
+    const t = copyBtn.textContent;
+    copyBtn.textContent = 'Copiato!';
+    setTimeout(()=>copyBtn.textContent=t, 900);
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  /************ REALTIME ************/
+  function setRt(on, msg){
+    RT.enabled = !!on;
+    rtFlag.textContent = on? 'ON':'OFF';
+    rtFlag.className = on? 'ok' : 'warn';
+    if (msg) console.log('Realtime:', msg);
+  }
+  function initRealtime(){
+    try{
+      if (!window.FIREBASE_CONFIG){ setRt(false, 'no config'); return; }
+      const app = firebase.initializeApp(window.FIREBASE_CONFIG);
+      const db  = firebase.database();
+      RT.db = db;
+
+      db.ref('rooms/'+ROOM+'/events').on('child_added', snap=>{
+        const ev = snap.val(); if (!ev) return;
+        if (ev.client === CLIENT) return;
+        if (ev.type === 'hover'){
+          const p = ev.payload;
+          hovers.set(ev.client || ('r_'+rndId()), {
+            x:p.x, y:p.y, r:p.r||RADIUS, color:p.c||'#ffffff', ts: performance.now()
+          });
+        }
+      });
+      setRt(true, 'stanza #'+ROOM);
+    }catch(e){ console.error(e); setRt(false, 'errore init'); }
+  }
+
+  /************ BOOT ************/
+  resizeCanvas();
+  requestAnimationFrame(drawFrame);
+  if (window.FIREBASE_CONFIG) initRealtime(); else setRt(false,'aggiungi config');
+  </script>
+</body>
+</html>
