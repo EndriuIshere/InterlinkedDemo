@@ -10,127 +10,85 @@
     body { min-height:100vh; background:#0f172a; color:#e5e7eb; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     .app { min-height:100vh; display:flex; flex-direction:column; padding:var(--gap); gap:var(--gap); }
 
-    /* HEADER */
-    .topbar {
-      display:flex; align-items:center; justify-content:space-between;
-      padding:10px 14px; border:1px solid #334155; border-radius:12px; background:#0b1220;
-    }
+    .topbar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border:1px solid #334155; border-radius:12px; background:#0b1220; }
     .title { font-weight:800; font-size:1.2rem; }
-    .iconbtn {
-      display:grid; place-items:center; width:36px; height:36px;
-      border-radius:10px; border:1px solid #334155; background:#0b1220; cursor:pointer; color:white; font-size:20px;
-    }
+    .iconbtn { display:grid; place-items:center; width:36px; height:36px; border-radius:10px; border:1px solid #334155; background:#0b1220; cursor:pointer; color:white; font-size:20px; }
     .iconbtn:hover { background:#10192c; }
 
-    /* MENU */
     .menu { position:relative; }
-    .menu .panel {
-      position:absolute; right:0; top:48px; min-width:180px;
-      background:#0b1220; border:1px solid #334155; border-radius:12px;
-      display:none; flex-direction:column; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.35);
-    }
+    .menu .panel { position:absolute; right:0; top:48px; min-width:200px; background:#0b1220; border:1px solid #334155; border-radius:12px; display:none; flex-direction:column; padding:8px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
     .menu.open .panel { display:flex; }
-    .panel button {
-      text-align:left; padding:8px 10px; border:none; background:transparent; color:#e5e7eb; cursor:pointer;
-      border-radius:8px; font-size:14px;
-    }
+    .panel button { text-align:left; padding:8px 10px; border:none; background:transparent; color:#e5e7eb; cursor:pointer; border-radius:8px; font-size:14px; }
     .panel button:hover { background:#10192c; }
 
-    /* LISTA CONTATTI */
     .contacts { flex:1; display:flex; flex-direction:column; gap:10px; margin-top:8px; }
-    .contact {
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px 14px;
-      background:#0b1220; border:1px solid #334155; border-radius:12px;
-      transition:background .2s;
-    }
+    .contact { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; background:#0b1220; border:1px solid #334155; border-radius:12px; transition:background .2s; }
     .contact:hover { background:#10192c; }
     .contact-info { display:flex; align-items:center; gap:12px; cursor:pointer; flex:1; }
-    .avatar {
-      width:40px; height:40px; border-radius:50%; background:#1e293b;
-      display:grid; place-items:center; font-size:18px;
-    }
+    .avatar { width:40px; height:40px; border-radius:50%; background:#1e293b; display:grid; place-items:center; font-size:18px; }
     .name { font-size:15px; font-weight:600; }
     .roomtag { font-size:12px; color:#94a3b8; }
     .actions { display:flex; gap:8px; }
-    .actionbtn {
-      border:none; background:#1e293b; color:#e5e7eb; border-radius:8px;
-      padding:6px 10px; cursor:pointer; font-size:12px;
-    }
+    .actionbtn { border:none; background:#1e293b; color:#e5e7eb; border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; }
     .actionbtn:hover { background:#334155; }
 
-    /* ADD BUTTON */
     .add-row { display:flex; justify-content:center; }
-    .add-btn {
-      width:56px; height:56px; border-radius:50%;
-      border:2px solid #334155; background:#0b1220; color:white; font-size:28px; cursor:pointer;
-      display:grid; place-items:center; box-shadow:0 6px 18px rgba(0,0,0,.35);
-    }
+    .add-btn { width:56px; height:56px; border-radius:50%; border:2px solid #334155; background:#0b1220; color:white; font-size:28px; cursor:pointer; display:grid; place-items:center; box-shadow:0 6px 18px rgba(0,0,0,.35); }
     .add-btn:hover { background:#10192c; }
 
-    /* MODAL */
-    .modal-bg {
-      position:fixed; inset:0; background:rgba(0,0,0,.6);
-      display:none; place-items:center; z-index:20;
-    }
-    .modal {
-      background:#0b1220; border:1px solid #334155; border-radius:14px; padding:20px;
-      width:90%; max-width:400px; display:flex; flex-direction:column; gap:14px;
-    }
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; place-items:center; z-index:20; }
+    .modal { background:#0b1220; border:1px solid #334155; border-radius:14px; padding:20px; width:90%; max-width:400px; display:flex; flex-direction:column; gap:14px; }
     .modal h2 { font-size:1.2rem; margin-bottom:4px; }
-    .modal input {
-      padding:10px; border-radius:10px; border:1px solid #334155; background:#1e293b; color:#e5e7eb;
-    }
+    .modal input { padding:10px; border-radius:10px; border:1px solid #334155; background:#1e293b; color:#e5e7eb; }
     .modal .buttons { display:flex; justify-content:flex-end; gap:10px; }
-    .btn {
-      padding:10px 16px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer;
-    }
+    .btn { padding:10px 16px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer; }
     .btn:hover { background:#10192c; }
     .error { color:#fca5a5; font-size:.9rem; min-height:1em; }
+
+    .requests { background:#1e293b; padding:10px; border-radius:12px; margin-bottom:10px; }
+    .req { display:flex; justify-content:space-between; align-items:center; margin:4px 0; }
+    .req span { font-size:14px; }
+    .req .btn { padding:4px 8px; font-size:12px; }
   </style>
 </head>
 <body>
   <div class="app">
-    <!-- Topbar -->
     <div class="topbar">
       <div class="title">Interlinked</div>
       <div class="menu" id="menu">
         <button class="iconbtn kebab" title="Menu">⋮</button>
         <div class="panel">
-          <button id="profile">Profilo (UID)</button>
+          <button id="profile">Mostra UID</button>
           <button id="logout">Esci</button>
         </div>
       </div>
     </div>
 
-    <!-- Lista contatti -->
+    <div class="requests" id="requestsBox" style="display:none"></div>
     <div class="contacts" id="contacts"></div>
-
-    <!-- Aggiungi persona -->
     <div class="add-row"><button class="add-btn" id="addContact">+</button></div>
   </div>
 
-  <!-- Modal per aggiungere contatto -->
+  <!-- Modal invio richiesta -->
   <div class="modal-bg" id="modalBg">
     <div class="modal">
-      <h2>Aggiungi contatto</h2>
-      <input type="email" id="contactEmail" placeholder="Email dell'altro utente" />
+      <h2>Invia richiesta contatto</h2>
+      <input type="text" id="contactUid" placeholder="UID dell'altro utente" />
+      <input type="text" id="contactName" placeholder="Nome da salvare" />
       <div id="modalError" class="error"></div>
       <div class="buttons">
         <button class="btn" id="cancelBtn">Annulla</button>
-        <button class="btn" id="confirmBtn">Aggiungi</button>
+        <button class="btn" id="confirmBtn">Invia</button>
       </div>
     </div>
   </div>
 
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
   <script>
-    /************ CONFIG ************/
-    window.FIREBASE_CONFIG = {
+    firebase.initializeApp({
       apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
       authDomain: "interlinked-demo.firebaseapp.com",
       databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
@@ -139,120 +97,107 @@
       messagingSenderId: "85117709871",
       appId: "1:85117709871:web:a154569112f845e2bfe0da",
       measurementId: "G-RBLX6ZQD01"
-    };
-    firebase.initializeApp(window.FIREBASE_CONFIG);
+    });
     const auth = firebase.auth();
     const db   = firebase.database();
-
     const $ = s => document.querySelector(s);
 
-    /************ MENU ************/
+    // Menu
     const menu = $("#menu");
     menu.querySelector(".kebab").addEventListener("click", ()=> menu.classList.toggle("open"));
     document.addEventListener("click", e=>{ if(!menu.contains(e.target)) menu.classList.remove("open"); });
 
     $("#logout").addEventListener("click", async ()=>{ await auth.signOut(); location.replace('login.html'); });
-    $("#profile").addEventListener("click", ()=>{
+    $("#profile").addEventListener("click", async ()=>{
       const u = auth.currentUser;
-      alert(u ? ("UID: " + u.uid + "\nEmail: " + (u.email || "(Google)")) : "Non loggato");
+      if(u){ await navigator.clipboard.writeText(u.uid); alert("UID copiato: "+u.uid); }
     });
 
-    /************ AUTH GATE ************/
-    let contactsRef = null;
-    let currentUid = null;
+    let currentUid=null, contactsRef=null, requestsRef=null;
     auth.onAuthStateChanged(user=>{
-      if(!user){ location.replace('login.html'); return; }
+      if(!user){ location.replace("login.html"); return; }
       currentUid = user.uid;
-      db.ref("users/"+user.uid+"/profile").set({ email: user.email || null });
-      initContacts(user.uid);
+      db.ref("users/"+user.uid+"/profile").set({ email:user.email||null });
+      initContacts(); initRequests();
     });
 
-    /************ CONTATTI ************/
+    // CONTATTI
     const contactsEl = $("#contacts");
-    function renderContact(id, data, uid){
+    function renderContact(id,data){
       const div = document.createElement("div");
-      div.className = "contact";
-      const info = document.createElement("div");
-      info.className = "contact-info";
-      info.innerHTML = `
-        <div class="avatar">👤</div>
-        <div>
-          <div class="name">${data.name}</div>
-          <div class="roomtag">#${data.room}</div>
-        </div>`;
-      info.addEventListener("click", ()=> location.href = "room.html#" + data.room);
-      const actions = document.createElement("div");
-      actions.className = "actions";
-      const editBtn = document.createElement("button");
-      editBtn.textContent = "✎"; editBtn.className = "actionbtn";
-      editBtn.addEventListener("click", ()=>{
-        const newName = prompt("Nuovo nome:", data.name);
-        if(newName) db.ref("users/"+uid+"/contacts/"+id).update({ name: newName });
-      });
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "🗑"; delBtn.className = "actionbtn";
-      delBtn.addEventListener("click", ()=>{
-        if(confirm("Vuoi eliminare "+data.name+"?")){
-          db.ref("users/"+uid+"/contacts/"+id).remove();
-        }
-      });
-      actions.appendChild(editBtn); actions.appendChild(delBtn);
-      div.appendChild(info); div.appendChild(actions); div.dataset.id = id;
+      div.className="contact";
+      const info=document.createElement("div");
+      info.className="contact-info";
+      info.innerHTML=`<div class="avatar">👤</div><div><div class="name">${data.name}</div><div class="roomtag">#${data.room}</div></div>`;
+      info.addEventListener("click",()=> location.href="room.html#"+data.room);
+      const actions=document.createElement("div");
+      actions.className="actions";
+      const edit=document.createElement("button");
+      edit.textContent="✎"; edit.className="actionbtn";
+      edit.onclick=()=>{
+        const newName=prompt("Nuovo nome:",data.name);
+        if(newName) db.ref("users/"+currentUid+"/contacts/"+id).update({name:newName});
+      };
+      const del=document.createElement("button");
+      del.textContent="🗑"; del.className="actionbtn";
+      del.onclick=()=>{ if(confirm("Eliminare "+data.name+"?")) db.ref("users/"+currentUid+"/contacts/"+id).remove(); };
+      actions.append(edit,del);
+      div.append(info,actions); div.dataset.id=id;
       return div;
     }
-    function initContacts(uid){
-      contactsEl.innerHTML = "";
-      contactsRef = db.ref("users/"+uid+"/contacts");
-      contactsRef.off();
-      contactsRef.on("child_added", snap=>{
-        const el = renderContact(snap.key, snap.val(), uid);
-        contactsEl.appendChild(el);
+    function initContacts(){
+      contactsEl.innerHTML="";
+      contactsRef=db.ref("users/"+currentUid+"/contacts");
+      contactsRef.on("child_added",s=>contactsEl.append(renderContact(s.key,s.val())));
+      contactsRef.on("child_changed",s=>{
+        const el=contactsEl.querySelector(`[data-id="${s.key}"]`);
+        if(el) el.replaceWith(renderContact(s.key,s.val()));
       });
-      contactsRef.on("child_changed", snap=>{
-        const el = contactsEl.querySelector(`[data-id="${snap.key}"]`);
-        if(el){
-          const updated = renderContact(snap.key, snap.val(), uid);
-          el.replaceWith(updated);
-        }
-      });
-      contactsRef.on("child_removed", snap=>{
-        const el = contactsEl.querySelector(`[data-id="${snap.key}"]`);
-        if(el) el.remove();
+      contactsRef.on("child_removed",s=>{
+        const el=contactsEl.querySelector(`[data-id="${s.key}"]`); if(el) el.remove();
       });
     }
 
-    /************ MODAL AGGIUNTA ************/
-    const modalBg = $("#modalBg"), contactEmailInput = $("#contactEmail");
-    const modalError = $("#modalError");
-    $("#addContact").addEventListener("click", ()=>{
-      contactEmailInput.value = "";
-      modalError.textContent = "";
-      modalBg.style.display = "grid";
-    });
-    $("#cancelBtn").addEventListener("click", ()=> modalBg.style.display = "none");
-    $("#confirmBtn").addEventListener("click", ()=>{
-      const email = contactEmailInput.value.trim();
-      if(!email){ modalError.textContent = "Inserisci un'email valida"; return; }
-      if(!currentUid) return;
-
-      db.ref("users").once("value", snap=>{
-        let otherUid = null, otherEmail = null;
-        snap.forEach(child=>{
-          if(child.val().profile && child.val().profile.email === email){
-            otherUid = child.key; otherEmail = email;
-          }
-        });
-        if(!otherUid){ modalError.textContent = "Nessun account trovato con questa email"; return; }
-        if(otherUid === currentUid){ modalError.textContent = "Non puoi aggiungere te stesso"; return; }
-
-        const room = "room_" + Math.random().toString(36).slice(2,10);
-        db.ref("users/"+currentUid+"/contacts").push({ name: otherEmail, room });
-        db.ref("users/"+otherUid+"/contacts").push({ name: auth.currentUser.email || "Utente", room });
-
-        modalBg.style.display = "none";
-        alert("Contatto aggiunto! Ora entrambi vedete la stessa stanza.");
+    // RICHIESTE
+    const reqBox=$("#requestsBox");
+    function renderRequest(id,r){
+      const d=document.createElement("div"); d.className="req";
+      d.innerHTML=`<span>${r.from} vuole aggiungerti come "${r.name}"</span>`;
+      const acc=document.createElement("button"); acc.className="btn"; acc.textContent="Accetta";
+      const rej=document.createElement("button"); rej.className="btn"; rej.textContent="Rifiuta";
+      acc.onclick=()=>{
+        db.ref("users/"+currentUid+"/contacts").push({name:r.name,room:r.room});
+        db.ref("users/"+r.from+"/contacts").push({name:"(ha accettato)",room:r.room});
+        db.ref("users/"+currentUid+"/requests/"+id).remove();
+      };
+      rej.onclick=()=> db.ref("users/"+currentUid+"/requests/"+id).remove();
+      d.append(acc,rej); return d;
+    }
+    function initRequests(){
+      requestsRef=db.ref("users/"+currentUid+"/requests");
+      requestsRef.on("child_added",s=>{
+        reqBox.style.display="block";
+        reqBox.append(renderRequest(s.key,s.val()));
       });
-    });
+      requestsRef.on("child_removed",s=>{
+        const el=reqBox.querySelector(`[data-id="${s.key}"]`); if(el) el.remove();
+        if(!reqBox.children.length) reqBox.style.display="none";
+      });
+    }
+
+    // MODAL
+    const modalBg=$("#modalBg"), contactUidInput=$("#contactUid"), contactNameInput=$("#contactName"), modalError=$("#modalError");
+    $("#addContact").onclick=()=>{contactUidInput.value="";contactNameInput.value="";modalError.textContent="";modalBg.style.display="grid";};
+    $("#cancelBtn").onclick=()=> modalBg.style.display="none";
+    $("#confirmBtn").onclick=()=>{
+      const otherUid=contactUidInput.value.trim(), name=contactNameInput.value.trim();
+      if(!otherUid||!name){ modalError.textContent="Completa i campi"; return; }
+      if(otherUid===currentUid){ modalError.textContent="Non puoi aggiungere te stesso"; return; }
+      const room="room_"+Math.random().toString(36).slice(2,10);
+      db.ref("users/"+currentUid+"/contacts").push({name,room});
+      db.ref("users/"+otherUid+"/requests").push({from:currentUid,name,room});
+      modalBg.style.display="none"; alert("Richiesta inviata!");
+    };
   </script>
 </body>
 </html>
