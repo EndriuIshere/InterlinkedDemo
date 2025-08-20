@@ -7,132 +7,152 @@
   <style>
     * {margin:0;padding:0;box-sizing:border-box}
     body {
-      background:#0f172a;
-      color:#e5e7eb;
+      background:#0B0F19;
+      color:#e4e4e7;
       font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
       min-height:100vh;
       display:flex;
       flex-direction:column;
-      padding:12px;
-      position:relative;
+      padding:14px;
     }
 
     .topbar {
       display:flex;
       align-items:center;
       justify-content:space-between;
-      padding:10px 14px;
-      border:1px solid #334155;
-      border-radius:12px;
-      background:#0b1220;
-      margin-bottom:16px;
+      padding:12px 16px;
+      border:1px solid #2c344a;
+      border-radius:16px;
+      background:#141A2A;
+      margin-bottom:20px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.4);
     }
     .title { font-weight:800; font-size:1.2rem; }
+
     .iconbtn {
       display:grid; place-items:center;
-      width:36px; height:36px;
-      border-radius:10px;
-      border:1px solid #334155;
-      background:#0b1220;
+      width:40px; height:40px;
+      border-radius:12px;
+      border:1px solid #2c344a;
+      background:#141a2a;
       cursor:pointer;
-      color:white; font-size:20px;
+      color:#e4e4e7; font-size:20px;
+      transition:0.2s;
     }
-    .iconbtn:hover { background:#10192c; }
+    .iconbtn:hover { background:#1b2235; color:#3b82f6; }
 
     .content {
       display:flex;
       flex-direction:column;
-      gap:18px;
+      gap:20px;
     }
 
     .avatar {
-      width:90px;height:90px;
+      width:100px;height:100px;
       border-radius:50%;
-      background:#1e293b;
+      background:linear-gradient(145deg,#2c344a,#141A2A);
       display:grid;place-items:center;
-      font-size:40px;
+      font-size:42px;
       align-self:center;
+      box-shadow:0 4px 12px rgba(0,0,0,0.5);
+      color:#3b82f6;
     }
 
-    .field {display:flex;flex-direction:column;gap:6px;}
-    .label {font-size:14px;color:#94a3b8;}
+    .field {display:flex;flex-direction:column;gap:8px;}
+    .label {font-size:14px;color:#9ca3af;}
     .input, .readonly {
-      padding:10px;
-      border-radius:10px;
-      border:1px solid #334155;
-      background:#1e293b;
-      color:#e5e7eb;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #2c344a;
+      background:#141A2A;
+      color:#e4e4e7;
       font-size:15px;
       width:100%;
+      transition:0.2s;
     }
+    .input:focus {outline:none;border-color:#3b82f6;}
     .readonly {opacity:.85}
 
-    .btn-row {display:flex;gap:10px;flex-wrap:wrap}
+    .btn-row {display:flex;gap:12px;flex-wrap:wrap}
     .btn {
       flex:1;
-      padding:10px;
-      border-radius:10px;
-      border:1px solid #334155;
-      background:#1e293b;
-      color:#e5e7eb;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #1f1f27;
+      background:#141A2A;
+      color:#e4e4e7;
       cursor:pointer;
       text-align:center;
       font-size:14px;
+      font-weight:500;
+      transition:0.2s;
+      display:flex;align-items:center;justify-content:center;gap:6px;
     }
-    .btn:hover {background:#334155}
-    .danger {background:#7f1d1d;border-color:#991b1b;width:100%}
-    .danger:hover {background:#991b1b}
+    .btn:hover {background:#1b2235; color:#3b82f6}
+    .danger {
+      background:#7f1d1d;
+      border-color:#991b1b;
+      width:100%;
+      font-weight:600;
+    }
+    .danger:hover {background:#991b1b;color:#fff}
 
     /* Modal password */
     .modal-bg {
       display:none;
       position:fixed;
       inset:0;
-      background:rgba(0,0,0,0.6);
+      background:rgba(0,0,0,0.7);
       justify-content:center;
       align-items:center;
       z-index:100;
     }
     .modal {
-      background:#1e293b;
-      padding:20px;
-      border-radius:12px;
+      background:#1a1a23;
+      padding:24px;
+      border-radius:16px;
       width:90%;
       max-width:400px;
       display:flex;
       flex-direction:column;
-      gap:12px;
+      gap:14px;
+      box-shadow:0 6px 20px rgba(0,0,0,0.6);
     }
     .modal input {
-      padding:10px;
-      border-radius:10px;
-      border:1px solid #334155;
-      background:#0b1220;
-      color:#e5e7eb;
+      padding:12px;
+      border-radius:12px;
+      border:1px solid #1f1f27;
+      background:#0f0f17;
+      color:#e4e4e7;
       font-size:14px;
       width:100%;
     }
     .modal button {
-      padding:10px;
-      border-radius:10px;
+      padding:12px;
+      border-radius:12px;
       border:none;
       cursor:pointer;
-      background:#7f1d1d;
+      background:#3b82f6;
       color:#fff;
       font-weight:600;
+      transition:0.2s;
     }
-    .modal button:hover { background:#991b1b; }
+    .modal button:hover { background:#2563eb; }
+    .modal-cancel {background:#1a1a23 !important;color:#e4e4e7;font-weight:500}
+    .modal-cancel:hover {background:#23232f !important}
   </style>
+  <!-- Icone -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
   <div class="topbar">
-    <button class="iconbtn" onclick="location.href='index.html'">←</button>
+    <button class="iconbtn" onclick="location.href='index.html'"><i data-lucide="arrow-left"></i></button>
     <div class="title">Profilo</div>
-    <div style="width:36px"></div>
+    <div style="width:40px"></div>
   </div>
 
   <div class="content">
-    <div class="avatar">👤</div>
+    <div class="avatar"><i data-lucide="user"></i></div>
 
     <div class="field">
       <div class="label">Nome utente</div>
@@ -145,10 +165,10 @@
     </div>
 
     <div class="btn-row">
-      <button id="shareBtn" class="btn">Condividi UID</button>
-      <button id="saveBtn" class="btn">Salva</button>
+      <button id="shareBtn" class="btn"><i data-lucide="share-2"></i>Condividi UID</button>
+      <button id="saveBtn" class="btn"><i data-lucide="save"></i>Salva</button>
     </div>
-    <button id="deleteBtn" class="btn danger">Elimina Account</button>
+    <button id="deleteBtn" class="btn danger"><i data-lucide="trash-2"></i>Elimina Account</button>
   </div>
 
   <!-- Modal Password -->
@@ -157,7 +177,7 @@
       <div>Reinserisci la tua password per confermare:</div>
       <input type="password" id="modalPassword" placeholder="Password">
       <button id="modalConfirm">Conferma</button>
-      <button id="modalCancel" style="background:#334155;margin-top:5px;">Annulla</button>
+      <button id="modalCancel" class="modal-cancel">Annulla</button>
     </div>
   </div>
 
@@ -233,6 +253,8 @@
         }
       };
     });
+
+    lucide.createIcons();
   </script>
 </body>
 </html>
