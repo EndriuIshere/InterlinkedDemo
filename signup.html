@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Interlinked — Login</title>
+  <title>Interlinked — Registrati</title>
   <style>
     :root { --gap:12px; }
     * { box-sizing: border-box; margin:0; padding:0; }
@@ -30,9 +30,6 @@
       font-weight:700;
     }
     .btn:hover { background:#10192c; }
-    .google {
-      display:flex; align-items:center; justify-content:center; gap:10px; font-weight:700;
-    }
     .muted { text-align:center; font-size:.9rem; color:#94a3b8; }
     .link { color:#93c5fd; cursor:pointer; }
     .error { color:#fca5a5; font-size:.9rem; min-height:1.2em; }
@@ -40,7 +37,7 @@
 </head>
 <body>
   <div class="card">
-    <div class="title">Interlinked</div>
+    <div class="title">Crea Account</div>
 
     <div class="field">
       <label for="email">E-mail</label>
@@ -48,14 +45,15 @@
     </div>
     <div class="field">
       <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" />
+      <input id="password" type="password" autocomplete="new-password" />
+    </div>
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" type="text" placeholder="Scegli un nome utente" />
     </div>
 
-    <button id="emailLogin" class="btn">Entra</button>
-    <div class="muted">oppure</div>
-    <button id="googleLogin" class="btn google">↪︎ Continua con Google</button>
-
-    <div class="muted">Non hai un account? <a href="signup.html" class="link">Registrati</a></div>
+    <button id="signupBtn" class="btn">Registrati</button>
+    <div class="muted">Hai già un account? <a href="login.html" class="link">Accedi</a></div>
     <div id="error" class="error"></div>
   </div>
 
@@ -76,27 +74,21 @@
       measurementId: "G-RBLX6ZQD01"
     });
     const auth = firebase.auth();
+    const db = firebase.database();
     auth.onAuthStateChanged(u => { if (u) location.replace('index.html'); });
 
     const $ = s => document.querySelector(s);
     const showErr = (m)=> $("#error").textContent = m || "";
 
-    $("#emailLogin").addEventListener("click", async ()=>{
+    $("#signupBtn").addEventListener("click", async ()=>{
       showErr("");
       const email = $("#email").value.trim();
       const pass  = $("#password").value;
-      if(!email || !pass) return showErr("Inserisci e-mail e password.");
+      const uname = $("#username").value.trim();
+      if(!email || !pass || !uname) return showErr("Completa tutti i campi.");
       try{
-        await auth.signInWithEmailAndPassword(email, pass);
-        location.replace('index.html');
-      }catch(e){ showErr(mapErr(e)); }
-    });
-
-    $("#googleLogin").addEventListener("click", async ()=>{
-      showErr("");
-      try{
-        const provider = new firebase.auth.GoogleAuthProvider();
-        await auth.signInWithPopup(provider);
+        const cred = await auth.createUserWithEmailAndPassword(email, pass);
+        await db.ref("users/"+cred.user.uid+"/profile").set({ email, name: uname });
         location.replace('index.html');
       }catch(e){ showErr(mapErr(e)); }
     });
@@ -104,8 +96,8 @@
     function mapErr(e){
       const c = e?.code || "";
       if (c.includes("auth/invalid-email")) return "E-mail non valida.";
-      if (c.includes("auth/user-not-found")) return "Utente inesistente.";
-      if (c.includes("auth/wrong-password")) return "Password errata.";
+      if (c.includes("auth/weak-password")) return "Password troppo debole (min 6).";
+      if (c.includes("auth/email-already-in-use")) return "E-mail già registrata.";
       return "Errore: " + (e?.message || e);
     }
   </script>

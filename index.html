@@ -32,7 +32,7 @@
     .actionbtn { border:none; background:#1e293b; color:#e5e7eb; border-radius:8px; padding:6px 10px; cursor:pointer; font-size:12px; }
     .actionbtn:hover { background:#334155; }
 
-    .add-row { display:flex; justify-content:center; }
+    .add-row { display:flex; justify-content:center; margin-top:auto; }
     .add-btn { width:56px; height:56px; border-radius:50%; border:2px solid #334155; background:#0b1220; color:white; font-size:28px; cursor:pointer; display:grid; place-items:center; box-shadow:0 6px 18px rgba(0,0,0,.35); }
     .add-btn:hover { background:#10192c; }
 
@@ -58,7 +58,7 @@
       <div class="menu" id="menu">
         <button class="iconbtn kebab" title="Menu">⋮</button>
         <div class="panel">
-          <button id="profile">Mostra UID</button>
+          <button id="profile">Profilo</button>
           <button id="logout">Esci</button>
         </div>
       </div>
@@ -107,18 +107,24 @@
     menu.querySelector(".kebab").addEventListener("click", ()=> menu.classList.toggle("open"));
     document.addEventListener("click", e=>{ if(!menu.contains(e.target)) menu.classList.remove("open"); });
 
-    $("#logout").addEventListener("click", async ()=>{ await auth.signOut(); location.replace('login.html'); });
-    $("#profile").addEventListener("click", async ()=>{
-      const u = auth.currentUser;
-      if(u){ await navigator.clipboard.writeText(u.uid); alert("UID copiato: "+u.uid); }
+    $("#logout").addEventListener("click", async ()=>{ 
+      await auth.signOut(); 
+      location.replace('login.html'); 
     });
 
-    let currentUid=null, contactsRef=null, requestsRef=null;
-    auth.onAuthStateChanged(user=>{
+    $("#profile").addEventListener("click", ()=> location.href="profile.html");  
+
+    let currentUid=null, currentName="", contactsRef=null, requestsRef=null;
+    auth.onAuthStateChanged(async user=>{
       if(!user){ location.replace("login.html"); return; }
       currentUid = user.uid;
-      db.ref("users/"+user.uid+"/profile").set({ email:user.email||null });
-      initContacts(); initRequests();
+
+      // carica nome utente corrente
+      const snap = await db.ref("users/"+user.uid+"/profile/name").once("value");
+      currentName = snap.exists() ? snap.val() : "Utente";
+
+      initContacts(); 
+      initRequests();
     });
 
     // CONTATTI
@@ -161,26 +167,34 @@
     // RICHIESTE
     const reqBox=$("#requestsBox");
     function renderRequest(id,r){
-      const d=document.createElement("div"); d.className="req";
-      d.innerHTML=`<span>${r.from} vuole aggiungerti come "${r.name}"</span>`;
+      const d=document.createElement("div"); 
+      d.className="req";
+      d.dataset.id=id;
+
+      // Mostra solo il nome del mittente
+      d.innerHTML=`<span>${r.fromName || "Utente"}</span>`;
+
       const acc=document.createElement("button"); acc.className="btn"; acc.textContent="Accetta";
       const rej=document.createElement("button"); rej.className="btn"; rej.textContent="Rifiuta";
       acc.onclick=()=>{
-        db.ref("users/"+currentUid+"/contacts").push({name:r.name,room:r.room});
-        db.ref("users/"+r.from+"/contacts").push({name:"(ha accettato)",room:r.room});
+        db.ref("users/"+currentUid+"/contacts").push({name:r.fromName,room:r.room});
+        db.ref("users/"+r.from+"/contacts").push({name:currentName,room:r.room});
         db.ref("users/"+currentUid+"/requests/"+id).remove();
       };
       rej.onclick=()=> db.ref("users/"+currentUid+"/requests/"+id).remove();
-      d.append(acc,rej); return d;
+      d.append(acc,rej); 
+      return d;
     }
     function initRequests(){
+      reqBox.innerHTML="";
       requestsRef=db.ref("users/"+currentUid+"/requests");
       requestsRef.on("child_added",s=>{
         reqBox.style.display="block";
         reqBox.append(renderRequest(s.key,s.val()));
       });
       requestsRef.on("child_removed",s=>{
-        const el=reqBox.querySelector(`[data-id="${s.key}"]`); if(el) el.remove();
+        const el=reqBox.querySelector(`[data-id="${s.key}"]`); 
+        if(el) el.remove();
         if(!reqBox.children.length) reqBox.style.display="none";
       });
     }
@@ -195,7 +209,7 @@
       if(otherUid===currentUid){ modalError.textContent="Non puoi aggiungere te stesso"; return; }
       const room="room_"+Math.random().toString(36).slice(2,10);
       db.ref("users/"+currentUid+"/contacts").push({name,room});
-      db.ref("users/"+otherUid+"/requests").push({from:currentUid,name,room});
+      db.ref("users/"+otherUid+"/requests").push({from:currentUid,fromName:currentName,room});
       modalBg.style.display="none"; alert("Richiesta inviata!");
     };
   </script>

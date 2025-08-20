@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Profilo — Interlinked</title>
+  <style>
+    * {margin:0;padding:0;box-sizing:border-box}
+    body {
+      background:#0f172a;
+      color:#e5e7eb;
+      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      padding:12px;
+    }
+
+    .topbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px 14px;
+      border:1px solid #334155;
+      border-radius:12px;
+      background:#0b1220;
+      margin-bottom:16px;
+    }
+    .title { font-weight:800; font-size:1.2rem; }
+    .iconbtn {
+      display:grid; place-items:center;
+      width:36px; height:36px;
+      border-radius:10px;
+      border:1px solid #334155;
+      background:#0b1220;
+      cursor:pointer;
+      color:white; font-size:20px;
+    }
+    .iconbtn:hover { background:#10192c; }
+
+    .content {
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .avatar {
+      width:90px;height:90px;
+      border-radius:50%;
+      background:#1e293b;
+      display:grid;place-items:center;
+      font-size:40px;
+      align-self:center;
+    }
+
+    .field {display:flex;flex-direction:column;gap:6px;}
+    .label {font-size:14px;color:#94a3b8;}
+    .input, .readonly {
+      padding:10px;
+      border-radius:10px;
+      border:1px solid #334155;
+      background:#1e293b;
+      color:#e5e7eb;
+      font-size:15px;
+      width:100%;
+    }
+    .readonly {opacity:.85}
+
+    .btn-row {display:flex;gap:10px;flex-wrap:wrap}
+    .btn {
+      flex:1;
+      padding:10px;
+      border-radius:10px;
+      border:1px solid #334155;
+      background:#1e293b;
+      color:#e5e7eb;
+      cursor:pointer;
+      text-align:center;
+      font-size:14px;
+    }
+    .btn:hover {background:#334155}
+    .danger {background:#7f1d1d;border-color:#991b1b;width:100%}
+    .danger:hover {background:#991b1b}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <button class="iconbtn" onclick="location.href='index.html'">←</button>
+    <div class="title">Profilo</div>
+    <div style="width:36px"></div>
+  </div>
+
+  <div class="content">
+    <div class="avatar">👤</div>
+
+    <div class="field">
+      <div class="label">Nome utente</div>
+      <input id="username" class="input" type="text" placeholder="Inserisci nome" />
+    </div>
+
+    <div class="field">
+      <div class="label">Email</div>
+      <div id="email" class="readonly"></div>
+    </div>
+
+    <div class="btn-row">
+      <button id="shareBtn" class="btn">Condividi UID</button>
+      <button id="saveBtn" class="btn">Salva</button>
+    </div>
+    <button id="deleteBtn" class="btn danger">Elimina Account</button>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script>
+    firebase.initializeApp({
+      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
+      authDomain: "interlinked-demo.firebaseapp.com",
+      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
+      projectId: "interlinked-demo",
+      storageBucket: "interlinked-demo.firebasestorage.app",
+      messagingSenderId: "85117709871",
+      appId: "1:85117709871:web:a154569112f845e2bfe0da",
+      measurementId: "G-RBLX6ZQD01"
+    });
+    const auth=firebase.auth(),db=firebase.database();
+    const username=document.getElementById("username"), email=document.getElementById("email");
+
+    auth.onAuthStateChanged(user=>{
+      if(!user){location.replace("login.html");return;}
+
+      email.textContent=user.email||"";
+
+      // ascolta sempre aggiornamenti del nome
+      db.ref("users/"+user.uid+"/profile/name").on("value",snap=>{
+        username.value = snap.exists() ? snap.val() : "";
+      });
+
+      document.getElementById("saveBtn").onclick=()=>{
+        const val = username.value.trim();
+        db.ref("users/"+user.uid+"/profile/name").set(val || "Utente");
+        alert("Nome utente salvato!");
+      };
+
+      document.getElementById("shareBtn").onclick=()=>{
+        navigator.clipboard.writeText(user.uid)
+          .then(()=>alert("UID copiato: "+user.uid));
+      };
+
+      document.getElementById("deleteBtn").onclick=()=>{
+        if(confirm("Sei sicuro di voler eliminare il tuo account?")){
+          db.ref("users/"+user.uid+"/profile").remove().then(() => {
+            user.delete()
+              .then(() => location.replace("signup.html"))
+              .catch(err => alert("Errore: "+err.message));
+          });
+        }
+      };
+    });
+  </script>
+</body>
+</html>
