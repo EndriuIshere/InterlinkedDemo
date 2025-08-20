@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interlinked — Login</title>
+  <style>
+    :root { --gap:12px; }
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      min-height:100vh; background:#0f172a; color:#e5e7eb;
+      display:grid; place-items:center;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      padding:16px;
+    }
+    .card {
+      width:100%; max-width:420px;
+      background:#0b1220; border:1px solid #334155; border-radius:16px;
+      padding:22px; box-shadow:0 12px 30px rgba(0,0,0,.35);
+      display:flex; flex-direction:column; gap:14px;
+    }
+    .title { font-weight:900; font-size:1.6rem; text-align:center; margin-bottom:6px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    label { font-size:.9rem; color:#cbd5e1; }
+    input {
+      width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb;
+    }
+    .btn {
+      width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer;
+      font-weight:700;
+    }
+    .btn:hover { background:#10192c; }
+    .google {
+      display:flex; align-items:center; justify-content:center; gap:10px; font-weight:700;
+    }
+    .muted { text-align:center; font-size:.9rem; color:#94a3b8; }
+    .link { color:#93c5fd; cursor:pointer; }
+    .error { color:#fca5a5; font-size:.9rem; min-height:1.2em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="title">Interlinked</div>
+
+    <div class="field">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="email" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" />
+    </div>
+
+    <button id="emailLogin" class="btn">Entra</button>
+    <div class="muted">oppure</div>
+    <button id="googleLogin" class="btn google">↪︎ Continua con Google</button>
+
+    <div class="muted">Non hai un account? <span id="signupLink" class="link">Registrati</span></div>
+    <div id="error" class="error"></div>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <script>
+    // === Config identica alla tua ===
+    window.FIREBASE_CONFIG = {
+      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
+      authDomain: "interlinked-demo.firebaseapp.com",
+      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
+      projectId: "interlinked-demo",
+      storageBucket: "interlinked-demo.firebasestorage.app",
+      messagingSenderId: "85117709871",
+      appId: "1:85117709871:web:a154569112f845e2bfe0da",
+      measurementId: "G-RBLX6ZQD01"
+    };
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    const auth = firebase.auth();
+
+    // Se già loggato → vai ai contatti
+    auth.onAuthStateChanged(u => { if (u) location.replace('index.html'); });
+
+    const $ = s => document.querySelector(s);
+    const showErr = (m)=> $("#error").textContent = m || "";
+
+    $("#emailLogin").addEventListener("click", async ()=>{
+      showErr("");
+      const email = $("#email").value.trim();
+      const pass  = $("#password").value;
+      if(!email || !pass) return showErr("Inserisci e-mail e password.");
+      try{
+        await auth.signInWithEmailAndPassword(email, pass);
+        location.replace('index.html');
+      }catch(e){ showErr(mapErr(e)); }
+    });
+
+    $("#signupLink").addEventListener("click", async ()=>{
+      showErr("");
+      const email = $("#email").value.trim();
+      const pass  = $("#password").value;
+      if(!email || !pass) return showErr("Inserisci e-mail e password.");
+      try{
+        await auth.createUserWithEmailAndPassword(email, pass);
+        location.replace('index.html');
+      }catch(e){ showErr(mapErr(e)); }
+    });
+
+    $("#googleLogin").addEventListener("click", async ()=>{
+      showErr("");
+      try{
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await auth.signInWithPopup(provider);
+        location.replace('index.html');
+      }catch(e){ showErr(mapErr(e)); }
+    });
+
+    function mapErr(e){
+      const c = e?.code || "";
+      if (c.includes("auth/invalid-email")) return "E-mail non valida.";
+      if (c.includes("auth/user-not-found")) return "Utente inesistente.";
+      if (c.includes("auth/wrong-password")) return "Password errata.";
+      if (c.includes("auth/weak-password")) return "Password troppo debole (min 6).";
+      if (c.includes("auth/email-already-in-use")) return "E-mail già registrata.";
+      return "Errore: " + (e?.message || e);
+    }
+  </script>
+</body>
+</html>
