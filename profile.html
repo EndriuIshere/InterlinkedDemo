@@ -14,6 +14,7 @@
       display:flex;
       flex-direction:column;
       padding:12px;
+      position:relative;
     }
 
     .topbar {
@@ -81,6 +82,46 @@
     .btn:hover {background:#334155}
     .danger {background:#7f1d1d;border-color:#991b1b;width:100%}
     .danger:hover {background:#991b1b}
+
+    /* Modal password */
+    .modal-bg {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.6);
+      justify-content:center;
+      align-items:center;
+      z-index:100;
+    }
+    .modal {
+      background:#1e293b;
+      padding:20px;
+      border-radius:12px;
+      width:90%;
+      max-width:400px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .modal input {
+      padding:10px;
+      border-radius:10px;
+      border:1px solid #334155;
+      background:#0b1220;
+      color:#e5e7eb;
+      font-size:14px;
+      width:100%;
+    }
+    .modal button {
+      padding:10px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      background:#7f1d1d;
+      color:#fff;
+      font-weight:600;
+    }
+    .modal button:hover { background:#991b1b; }
   </style>
 </head>
 <body>
@@ -110,6 +151,16 @@
     <button id="deleteBtn" class="btn danger">Elimina Account</button>
   </div>
 
+  <!-- Modal Password -->
+  <div class="modal-bg" id="modalBg">
+    <div class="modal">
+      <div>Reinserisci la tua password per confermare:</div>
+      <input type="password" id="modalPassword" placeholder="Password">
+      <button id="modalConfirm">Conferma</button>
+      <button id="modalCancel" style="background:#334155;margin-top:5px;">Annulla</button>
+    </div>
+  </div>
+
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -125,37 +176,60 @@
       appId: "1:85117709871:web:a154569112f845e2bfe0da",
       measurementId: "G-RBLX6ZQD01"
     });
-    const auth=firebase.auth(),db=firebase.database();
-    const username=document.getElementById("username"), email=document.getElementById("email");
 
-    auth.onAuthStateChanged(user=>{
-      if(!user){location.replace("login.html");return;}
+    const auth = firebase.auth(), db = firebase.database();
+    const username = document.getElementById("username"), email = document.getElementById("email");
 
-      email.textContent=user.email||"";
+    const modalBg = document.getElementById("modalBg");
+    const modalPassword = document.getElementById("modalPassword");
+    const modalConfirm = document.getElementById("modalConfirm");
+    const modalCancel = document.getElementById("modalCancel");
 
-      // ascolta sempre aggiornamenti del nome
-      db.ref("users/"+user.uid+"/profile/name").on("value",snap=>{
+    auth.onAuthStateChanged(user => {
+      if (!user) { location.replace("login.html"); return; }
+
+      email.textContent = user.email || "";
+
+      db.ref("users/"+user.uid+"/profile/name").on("value", snap => {
         username.value = snap.exists() ? snap.val() : "";
       });
 
-      document.getElementById("saveBtn").onclick=()=>{
+      document.getElementById("saveBtn").onclick = () => {
         const val = username.value.trim();
-        db.ref("users/"+user.uid+"/profile/name").set(val || "Utente");
+        db.ref("users/" + user.uid + "/profile/name").set(val || "Utente");
         alert("Nome utente salvato!");
       };
 
-      document.getElementById("shareBtn").onclick=()=>{
+      document.getElementById("shareBtn").onclick = () => {
         navigator.clipboard.writeText(user.uid)
-          .then(()=>alert("UID copiato: "+user.uid));
+          .then(() => alert("UID copiato: " + user.uid));
       };
 
-      document.getElementById("deleteBtn").onclick=()=>{
-        if(confirm("Sei sicuro di voler eliminare il tuo account?")){
-          db.ref("users/"+user.uid+"/profile").remove().then(() => {
-            user.delete()
-              .then(() => location.replace("signup.html"))
-              .catch(err => alert("Errore: "+err.message));
-          });
+      // Mostra modal
+      document.getElementById("deleteBtn").onclick = () => {
+        modalBg.style.display = "flex";
+        modalPassword.value = "";
+      };
+
+      modalCancel.onclick = () => {
+        modalBg.style.display = "none";
+      };
+
+      modalConfirm.onclick = async () => {
+        const password = modalPassword.value;
+        if (!password) return alert("Inserisci la password!");
+
+        try {
+          const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
+          await user.reauthenticateWithCredential(credential);
+
+          await db.ref("users/" + user.uid).remove();
+          await user.delete();
+
+          alert("Account eliminato con successo!");
+          location.replace("signup.html");
+        } catch (err) {
+          alert("Errore: " + err.message);
         }
       };
     });
