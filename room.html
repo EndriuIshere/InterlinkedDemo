@@ -55,8 +55,7 @@
 
     <!-- Seconda riga -->
     <div class="controls">
-      <span class="pill">Stanza: <code class="mono" id="roomLbl"></code>
-        <button class="btn" id="copyRoom">Copia URL</button></span>
+      <span class="pill">Stanza: <code class="mono" id="roomLbl"></code></span>
       <span class="pill">Connesso: <b id="rtFlag" class="warn">OFF</b></span>
     </div>
 
@@ -88,9 +87,7 @@
     const auth = firebase.auth();
 
     // Gate: se non loggato torna al login
-    auth.onAuthStateChanged(u=>{
-      if(!u) location.replace('login.html');
-    });
+    auth.onAuthStateChanged(u=>{ if(!u) location.replace('login.html'); });
 
     // Back ai contatti
     document.getElementById("back").addEventListener("click", ()=> location.href='index.html');
@@ -113,15 +110,12 @@
     const BASE_OUT    = {r:255,g:0,b:0,a:0.30};
 
     let zonePath = new Path2D();
-    let points = [];        // grid points
-    let COLS=0, ROWS=0;     // grid dims per spacing
+    let points = [];
+    let COLS=0, ROWS=0;
     let COLOR = '#00ffaa';
     let SPACING = 18;
     let RADIUS  = 90;
     let LIFE_MS = 2000;
-
-    const BASE_R = 2;
-    const BOOST  = 3.2;
 
     const CLIENT = 'c_' + rndId();
     const ROOM = (location.hash && location.hash.slice(1)) || ('room_' + rndId());
@@ -149,7 +143,6 @@
       points = [];
       COLS = Math.floor(w / SPACING) + 1;
       ROWS = Math.floor(h / SPACING) + 1;
-
       for (let row=0; row<ROWS; row++){
         for (let col=0; col<COLS; col++){
           const px = col*SPACING, py = row*SPACING;
@@ -231,13 +224,6 @@
     $('#radius').addEventListener('input', e=> RADIUS = parseInt(e.target.value,10));
     $('#life').addEventListener('input', e=> LIFE_MS = parseInt(e.target.value,10));
 
-    const copyBtn = $('#copyRoom'), rtFlag = $('#rtFlag');
-    copyBtn.addEventListener('click', async ()=>{
-      await navigator.clipboard.writeText(location.href);
-      const t = copyBtn.textContent;
-      copyBtn.textContent = 'Copiato!'; setTimeout(()=>copyBtn.textContent=t, 900);
-    });
-
     canvas.addEventListener('pointermove', (e)=>{ const p = toCanvasPos(e); sendHover(p.x, p.y); });
     canvas.addEventListener('touchmove', (e)=>{ const p = toCanvasPos(e); sendHover(p.x, p.y); }, {passive:true});
     window.addEventListener('resize', resizeCanvas);
@@ -245,8 +231,8 @@
     /************ REALTIME ************/
     function setRt(on,msg){
       RT.enabled = !!on;
-      rtFlag.textContent = on? 'ON':'OFF';
-      rtFlag.className = on? 'ok' : 'warn';
+      $('#rtFlag').textContent = on? 'ON':'OFF';
+      $('#rtFlag').className = on? 'ok' : 'warn';
       if (msg) console.log('Realtime:', msg);
     }
     function initRealtime(){
