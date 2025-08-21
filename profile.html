@@ -165,17 +165,17 @@
     </div>
 
     <div class="btn-row">
-      <button id="shareBtn" class="btn"><i data-lucide="share-2"></i>Condividi UID</button>
+      <button id="changePassBtn" class="btn"><i data-lucide="lock"></i>Cambia Password</button>
       <button id="saveBtn" class="btn"><i data-lucide="save"></i>Salva</button>
     </div>
     <button id="deleteBtn" class="btn danger"><i data-lucide="trash-2"></i>Elimina Account</button>
   </div>
 
-  <!-- Modal Password -->
+  <!-- Modal Cambio Password -->
   <div class="modal-bg" id="modalBg">
     <div class="modal">
-      <div>Reinserisci la tua password per confermare:</div>
-      <input type="password" id="modalPassword" placeholder="Password">
+      <div>Inserisci la nuova password:</div>
+      <input type="password" id="newPassword" placeholder="Nuova password">
       <button id="modalConfirm">Conferma</button>
       <button id="modalCancel" class="modal-cancel">Annulla</button>
     </div>
@@ -201,7 +201,7 @@
     const username = document.getElementById("username"), email = document.getElementById("email");
 
     const modalBg = document.getElementById("modalBg");
-    const modalPassword = document.getElementById("modalPassword");
+    const newPassword = document.getElementById("newPassword");
     const modalConfirm = document.getElementById("modalConfirm");
     const modalCancel = document.getElementById("modalCancel");
 
@@ -220,15 +220,10 @@
         alert("Nome utente salvato!");
       };
 
-      document.getElementById("shareBtn").onclick = () => {
-        navigator.clipboard.writeText(user.uid)
-          .then(() => alert("UID copiato: " + user.uid));
-      };
-
-      // Mostra modal
-      document.getElementById("deleteBtn").onclick = () => {
+      // Cambio password
+      document.getElementById("changePassBtn").onclick = () => {
         modalBg.style.display = "flex";
-        modalPassword.value = "";
+        newPassword.value = "";
       };
 
       modalCancel.onclick = () => {
@@ -236,20 +231,25 @@
       };
 
       modalConfirm.onclick = async () => {
-        const password = modalPassword.value;
-        if (!password) return alert("Inserisci la password!");
+        const pwd = newPassword.value;
+        if (!pwd) return alert("Inserisci la nuova password!");
 
         try {
-          const credential = firebase.auth.EmailAuthProvider.credential(user.email, password);
-          await user.reauthenticateWithCredential(credential);
-
-          await db.ref("users/" + user.uid).remove();
-          await user.delete();
-
-          alert("Account eliminato con successo!");
-          location.replace("signup.html");
+          await user.updatePassword(pwd);
+          alert("Password aggiornata con successo!");
+          modalBg.style.display = "none";
         } catch (err) {
           alert("Errore: " + err.message);
+        }
+      };
+
+      // Eliminazione account
+      document.getElementById("deleteBtn").onclick = async () => {
+        if(confirm("Sei sicuro di voler eliminare l'account?")){
+          await db.ref("users/" + user.uid).remove();
+          await user.delete();
+          alert("Account eliminato!");
+          location.replace("signup.html");
         }
       };
     });

@@ -250,6 +250,7 @@
       <div class="menu" id="menu">
         <button class="iconbtn kebab" title="Menu"><i data-lucide="more-vertical"></i></button>
         <div class="panel">
+          <button id="shareUid"><i data-lucide="share-2"></i> Condividi UID</button>
           <button id="profile"><i data-lucide="user"></i> Profilo</button>
           <button id="logout"><i data-lucide="log-out"></i> Esci</button>
         </div>
@@ -317,6 +318,31 @@
 
       initContacts(); 
       initRequests();
+
+      // Share UID
+      $("#shareUid").addEventListener("click", ()=>{
+        const link = `${location.origin}${location.pathname}?add=${currentUid}`;
+        if(navigator.share){
+          navigator.share({
+            title: "Interlinked",
+            text: "Aggiungimi su Interlinked!",
+            url: link
+          }).catch(()=>{});
+        } else {
+          alert("Copia questo link: " + link);
+        }
+      });
+
+      // Se apri con ?add=UID ricevi automaticamente richiesta
+      const params = new URLSearchParams(location.search);
+      const addUid = params.get("add");
+      if(addUid && addUid!==currentUid){
+        const room="room_"+Math.random().toString(36).slice(2,10);
+        db.ref("users/"+currentUid+"/contacts").push({name:"Nuovo Contatto",room});
+        db.ref("users/"+addUid+"/requests").push({from:currentUid,fromName:currentName,room});
+        alert("Richiesta inviata automaticamente!");
+        history.replaceState({}, document.title, location.pathname);
+      }
     });
 
     // CONTATTI
@@ -341,7 +367,7 @@
       del.onclick=()=>{ if(confirm("Eliminare "+data.name+"?")) db.ref("users/"+currentUid+"/contacts/"+id).remove(); };
       actions.append(edit,del);
       div.append(info,actions); div.dataset.id=id;
-      lucide.createIcons();
+      lucide.createIcons({icons: div.querySelectorAll("i")});
       return div;
     }
     function initContacts(){
@@ -375,7 +401,7 @@
       };
       rej.onclick=()=> db.ref("users/"+currentUid+"/requests/"+id).remove();
       d.append(acc,rej); 
-      lucide.createIcons();
+      lucide.createIcons({icons: d.querySelectorAll("i")});
       return d;
     }
     function initRequests(){
