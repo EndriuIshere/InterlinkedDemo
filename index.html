@@ -366,20 +366,31 @@
       del.innerHTML='<i data-lucide="trash-2"></i>'; del.className="actionbtn";
       del.onclick=()=>{ if(confirm("Eliminare "+data.name+"?")) db.ref("users/"+currentUid+"/contacts/"+id).remove(); };
       actions.append(edit,del);
-      div.append(info,actions); div.dataset.id=id;
-      lucide.createIcons({icons: div.querySelectorAll("i")});
+      div.append(info,actions); 
+      div.dataset.id=id;
       return div;
     }
     function initContacts(){
       contactsEl.innerHTML="";
       contactsRef=db.ref("users/"+currentUid+"/contacts");
-      contactsRef.on("child_added",s=>contactsEl.append(renderContact(s.key,s.val())));
+      contactsRef.on("child_added",s=>{
+        const node = renderContact(s.key,s.val());
+        contactsEl.append(node);
+        // inizializza lucide DOPO l'inserimento
+        lucide.createIcons();
+      });
       contactsRef.on("child_changed",s=>{
         const el=contactsEl.querySelector(`[data-id="${s.key}"]`);
-        if(el) el.replaceWith(renderContact(s.key,s.val()));
+        if(el){
+          const newNode = renderContact(s.key,s.val());
+          el.replaceWith(newNode);
+          // re-inizializza le icone del nodo sostituito
+          lucide.createIcons();
+        }
       });
       contactsRef.on("child_removed",s=>{
-        const el=contactsEl.querySelector(`[data-id="${s.key}"]`); if(el) el.remove();
+        const el=contactsEl.querySelector(`[data-id="${s.key}"]`); 
+        if(el) el.remove();
       });
     }
 
@@ -401,7 +412,6 @@
       };
       rej.onclick=()=> db.ref("users/"+currentUid+"/requests/"+id).remove();
       d.append(acc,rej); 
-      lucide.createIcons({icons: d.querySelectorAll("i")});
       return d;
     }
     function initRequests(){
@@ -409,7 +419,10 @@
       requestsRef=db.ref("users/"+currentUid+"/requests");
       requestsRef.on("child_added",s=>{
         reqBox.style.display="block";
-        reqBox.append(renderRequest(s.key,s.val()));
+        const node = renderRequest(s.key,s.val());
+        reqBox.append(node);
+        // inizializza le icone anche qui
+        lucide.createIcons();
       });
       requestsRef.on("child_removed",s=>{
         const el=reqBox.querySelector(`[data-id="${s.key}"]`); 
@@ -432,7 +445,7 @@
       modalBg.style.display="none"; alert("Richiesta inviata!");
     };
 
-    // Inizializza icone
+    // Inizializza le icone statiche
     lucide.createIcons();
   </script>
 </body>
