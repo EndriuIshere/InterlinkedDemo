@@ -20,11 +20,22 @@
       display:flex; flex-direction:column; gap:14px;
     }
     .title { font-weight:900; font-size:1.6rem; text-align:center; margin-bottom:6px; }
-    .field { display:flex; flex-direction:column; gap:6px; }
+    .field { display:flex; flex-direction:column; gap:6px; position:relative; }
     label { font-size:.9rem; color:#cbd5e1; }
     input {
       width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb;
     }
+    .with-eye { padding-right:44px; }
+
+    .icon-btn {
+      position:absolute; right:8px; top:50%; transform:translateY(-50%);
+      width:36px; height:36px; display:grid; place-items:center;
+      background:transparent; border:0; border-radius:8px; cursor:pointer; color:#94a3b8;
+    }
+    .icon-btn:hover { color:#cbd5e1; background:#0f1b33; }
+    .icon-btn:active { transform:translateY(-50%) scale(0.98); }
+    .icon-btn svg { width:22px; height:22px; aspect-ratio:1 / 1; }
+
     .btn {
       width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer;
       font-weight:700;
@@ -43,10 +54,19 @@
       <label for="email">E-mail</label>
       <input id="email" type="email" autocomplete="email" />
     </div>
+
     <div class="field">
       <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="new-password" />
+      <input id="password" class="with-eye" type="password" autocomplete="new-password" />
+      <button id="toggleEye" class="icon-btn" type="button" aria-label="Mostra password" aria-pressed="false" title="Mostra password">
+        <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+          <line id="eyeSlash" x1="3" y1="3" x2="21" y2="21" style="display:none"></line>
+        </svg>
+      </button>
     </div>
+
     <div class="field">
       <label for="username">Username</label>
       <input id="username" type="text" placeholder="Scegli un nome utente" />
@@ -80,11 +100,30 @@
     const $ = s => document.querySelector(s);
     const showErr = (m)=> $("#error").textContent = m || "";
 
-    $("#signupBtn").addEventListener("click", async ()=>{
+    // Toggle password + accessibilità
+    (function(){
+      const btn = document.getElementById("toggleEye");
+      const slash = document.getElementById("eyeSlash");
+      const input = document.getElementById("password");
+      const toggle = () => {
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        slash.style.display = show ? "block" : "none";
+        btn.setAttribute("aria-pressed", show ? "true" : "false");
+        btn.setAttribute("title", show ? "Nascondi password" : "Mostra password");
+      };
+      btn.addEventListener("click", toggle);
+      btn.addEventListener("keydown", (e)=> {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+    })();
+
+    // Registrazione
+    document.getElementById("signupBtn").addEventListener("click", async ()=>{
       showErr("");
-      const email = $("#email").value.trim();
-      const pass  = $("#password").value;
-      const uname = $("#username").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const pass  = document.getElementById("password").value;
+      const uname = document.getElementById("username").value.trim();
       if(!email || !pass || !uname) return showErr("Completa tutti i campi.");
       try{
         const cred = await auth.createUserWithEmailAndPassword(email, pass);
@@ -98,7 +137,8 @@
       if (c.includes("auth/invalid-email")) return "E-mail non valida.";
       if (c.includes("auth/weak-password")) return "Password troppo debole (min 6).";
       if (c.includes("auth/email-already-in-use")) return "E-mail già registrata.";
-      return "Errore: " + (e?.message || e);
+      // return "Errore: " + (e?.message || e);
+      return "Errore, riprova!";
     }
   </script>
 </body>

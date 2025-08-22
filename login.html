@@ -19,20 +19,30 @@
       padding:22px; box-shadow:0 12px 30px rgba(0,0,0,.35);
       display:flex; flex-direction:column; gap:14px;
     }
-    .title { font-weight:900; font-size:1.6rem; text-align:center; margin-bottom:6px; color: #3b82f6;}
-    .field { display:flex; flex-direction:column; gap:6px; }
+    .title { font-weight:900; font-size:1.6rem; text-align:center; margin-bottom:6px; color:#3b82f6; }
+    .field { display:flex; flex-direction:column; gap:6px; position:relative; }
     label { font-size:.9rem; color:#cbd5e1; }
     input {
       width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb;
     }
+    /* Evita che il testo si sovrapponga all’icona quando il tipo cambia */
+    .with-eye { padding-right:44px; }
+
+    /* Bottone icona accessibile e non deformabile */
+    .icon-btn {
+      position:absolute; right:8px; top:50%; transform:translateY(-50%);
+      width:36px; height:36px; display:grid; place-items:center;
+      background:transparent; border:0; border-radius:8px; cursor:pointer; color:#94a3b8;
+    }
+    .icon-btn:hover { color:#cbd5e1; background:#0f1b33; }
+    .icon-btn:active { transform:translateY(-50%) scale(0.98); }
+    .icon-btn svg { width:22px; height:22px; aspect-ratio:1 / 1; }
     .btn {
       width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer;
       font-weight:700;
     }
     .btn:hover { background:#10192c; }
-    .google {
-      display:flex; align-items:center; justify-content:center; gap:10px; font-weight:700;
-    }
+    .google { display:flex; align-items:center; justify-content:center; gap:10px; font-weight:700; }
     .muted { text-align:center; font-size:.9rem; color:#94a3b8; }
     .link { color:#93c5fd; cursor:pointer; }
     .error { color:#fca5a5; font-size:.9rem; min-height:1.2em; text-align:center; }
@@ -47,9 +57,20 @@
       <label for="email">E-mail</label>
       <input id="email" type="email" autocomplete="email" />
     </div>
+
     <div class="field">
       <label for="password">Password</label>
-      <input id="password" type="password" autocomplete="current-password" />
+      <input id="password" class="with-eye" type="password" autocomplete="current-password" />
+      <button id="toggleEye" class="icon-btn" type="button" aria-label="Mostra password" aria-pressed="false" title="Mostra password">
+        <!-- Icona occhio (stroke, rapporto 1:1) con slash che appare/scompare -->
+        <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Occhio -->
+          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+          <!-- Slash (inizialmente nascosto) -->
+          <line id="eyeSlash" x1="3" y1="3" x2="21" y2="21" style="display:none"></line>
+        </svg>
+      </button>
     </div>
 
     <button id="emailLogin" class="btn">Entra</button>
@@ -88,6 +109,24 @@
     const $ = s => document.querySelector(s);
     const showErr = (m)=> { $("#error").textContent = m || ""; if(m) $("#success").textContent=""; };
     const showOk  = (m)=> { $("#success").textContent = m || ""; if(m) $("#error").textContent=""; };
+
+    // Toggle password + accessibilità
+    (function(){
+      const btn = $("#toggleEye");
+      const slash = $("#eyeSlash");
+      const input = $("#password");
+      const toggle = () => {
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        slash.style.display = show ? "block" : "none";
+        btn.setAttribute("aria-pressed", show ? "true" : "false");
+        btn.setAttribute("title", show ? "Nascondi password" : "Mostra password");
+      };
+      btn.addEventListener("click", toggle);
+      btn.addEventListener("keydown", (e)=> {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+    })();
 
     // Login con email e password
     $("#emailLogin").addEventListener("click", async ()=>{
@@ -135,7 +174,8 @@
       if (c.includes("auth/user-not-found")) return "Utente inesistente.";
       if (c.includes("auth/wrong-password")) return "Password errata.";
       if (c.includes("auth/popup-closed-by-user")) return "Accesso annullato.";
-      return "Errore: " + (e?.message || e);
+      // return "Errore: " + (e?.message || e);
+      return "Errore, riprova!";
     }
   </script>
 </body>
