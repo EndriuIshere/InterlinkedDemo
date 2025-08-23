@@ -545,9 +545,7 @@
       } catch(e){
         console.error("Errore People API:", e);
         suggestedStatus.textContent = "Errore People API";
-      } finally {
-        // riabilita pulsante
-        consentiCaricaBtn.disabled = false;
+        throw e;
       }
     }
 
@@ -558,13 +556,14 @@
         client_id: GOOGLE_CLIENT_ID,
         scope: PEOPLE_SCOPE,
         callback: async (resp) => {
+          // Questo callback è chiamato quando il token è stato ottenuto (o c'è un errore)
           if(resp.error){
             console.error("Token error callback:", resp);
             suggestedStatus.textContent = "Permesso non concesso";
             consentiCaricaBtn.disabled = false;
             return;
           }
-          // set token on gapi
+          // set token on gapi if possibile
           try {
             if (gapi && gapi.client && typeof gapi.client.setToken === 'function') {
               gapi.client.setToken({ access_token: resp.access_token });
@@ -572,11 +571,16 @@
           } catch(e){
             console.warn("gapi.client.setToken non disponibile:", e);
           }
-          // now fetch and render
+
+          // provo a recuperare i contatti
           try {
             await fetchAndRenderPeopleWithGapi();
           } catch(e){
-            console.warn("fetch after token failed:", e);
+            // People API fallita: stato già settato dentro la funzione
+            console.warn("fetchAndRenderPeopleWithGapi ha fallito dopo token:", e);
+          } finally {
+            // **Nascondi il consentBox comunque dopo l'operazione** (come richiesto)
+            if(consentBox) consentBox.style.display = "none";
             consentiCaricaBtn.disabled = false;
           }
         }
@@ -601,7 +605,7 @@
         ensureTokenClient();
         // prompt: 'consent' to force the consent screen (user gesture prevents popup blocking)
         tokenClient.requestAccessToken({ prompt: 'consent' });
-        // the callback will handle fetching and re-enabling button
+        // la callback tokenClient gestirà fetch, stato e nascondere il consentBox
       } catch(err){
         console.error("requestAccessToken error:", err);
         suggestedStatus.textContent = "Popup bloccato o errore";
@@ -615,6 +619,14 @@
       if(contactsRef) contactsRef.off();
       if(requestsRef) requestsRef.off();
     });
+
+    /*
+      Nota sui messaggi console 'Cross-Origin-Opener-Policy policy would block the window.opener call.':
+      - Sono log generati dalla libreria Google quando prova a usare window.opener, ma il browser applica
+        COOP/COEP / politiche di sicurezza che impediscono l'accesso cross-origin.
+      - Non indicano un bug nel codice e generalmente non bloccano il flusso di autorizzazione.
+      - Per eliminarli occorrerebbe cambiare il flow (es. redirect OAuth) o settare intestazioni COOP/COEP sul server.
+    */
   </script>
 </body>
 </html>
