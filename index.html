@@ -579,7 +579,7 @@
     async function fetchAndRenderPeopleWithGapi() {
       const res = await gapi.client.people.people.connections.list({
         resourceName: "people/me",
-        pageSize: 100, // un po' di più, così c'è più probabilità di avere numeri/nome
+        pageSize: 1000, // un po' di più, così c'è più probabilità di avere numeri/nome
         personFields: "names,emailAddresses,phoneNumbers,photos"
       });
       const connections = res.result.connections || [];
