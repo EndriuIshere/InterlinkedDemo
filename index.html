@@ -141,9 +141,10 @@
       color:white;
       font-weight:700;
       box-shadow: 0 2px 8px rgba(0,0,0,.4);
+      user-select:none;
     }
     .name { font-size:15px; font-weight:600; }
-    .roomtag { font-size:12px; color:var(--text-muted); }
+    .roomtag { font-size:12px; color:var(--text-muted); word-break:break-all; }
     .actions { display:flex; gap:8px; }
     .actionbtn {
       border:none;
@@ -194,7 +195,7 @@
     .suggest .name { font-weight:600; font-size:14px; }
     .suggest .roomtag { font-size:12px; color:var(--text-muted); }
 
-    .status-text { color:var(--text-muted); font-size:14px; margin-bottom:8px; }
+    .status-text { color:var(--text-muted); font-size:14px; margin-bottom:8px; min-height:1em; }
 
     .btn {
       padding:10px 14px;
@@ -224,7 +225,7 @@
     .consent-text {
       flex:1;
       font-size:14px;
-      line-height:1.3;
+      line-height:1.35;
     }
     .consent-actions {
       display:flex;
@@ -265,14 +266,16 @@
 
     <div class="section-title">Consigliati</div>
 
-    <!-- POP-UP-LIKE BOX sotto i consigliati, con testo lungo e UNICO pulsante "Consenti e Carica" -->
+    <!-- POP-UP-LIKE BOX sotto i consigliati, con UNICO pulsante "Consenti e Carica" -->
     <div id="consentBox" class="consent-box">
       <div class="consent-text">
         Per mostrarti i suggerimenti dai tuoi contatti Google dobbiamo accedere alla tua rubrica (solo lettura).
         Clicca <strong>Consenti e Carica</strong> per aprire la finestra di autorizzazione Google e caricare subito i suggeriti.
       </div>
       <div class="consent-actions">
-        <button id="consentiCaricaBtn" class="btn"><i data-lucide="download-cloud"></i> Consenti e Carica</button>
+        <button id="consentiCaricaBtn" class="btn" aria-label="Consenti l'accesso ai contatti Google e carica i suggerimenti">
+          <i data-lucide="download-cloud"></i> Consenti e Carica
+        </button>
       </div>
     </div>
 
@@ -307,7 +310,8 @@
 
     // ---------- GOOGLE / PEOPLE API CONFIG ----------
     const GOOGLE_CLIENT_ID = "85117709871-gsg2aanikj3n8vrkmsga22i6v48rd4eq.apps.googleusercontent.com";
-    const PEOPLE_SCOPE = 'https://www.googleapis.com/auth/contacts.readonly';
+    // Scope sufficiente per leggere la rubrica di Google Contacts:
+    const PEOPLE_SCOPE = "https://www.googleapis.com/auth/contacts.readonly";
 
     // ---------- UI ELEMENTS ----------
     const menu = $("#menu");
@@ -486,84 +490,134 @@
     // ---------- SUGGERITI (People API) ----------
     let tokenClient = null;
 
-    // helper to init gapi client
+    // Inizializza gapi client
     async function ensureGapiClient() {
       return new Promise((res, rej) => {
         if (typeof gapi === 'undefined') return rej(new Error("gapi non presente"));
-        gapi.load("client", { callback: async () => {
-          try {
-            await gapi.client.init({ discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"] });
-            res();
-          } catch(e){ rej(e); }
-        }, onerror: rej });
+        gapi.load("client", {
+          callback: async () => {
+            try {
+              await gapi.client.init({
+                discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"]
+              });
+              res();
+            } catch(e){ rej(e); }
+          },
+          onerror: rej
+        });
       });
     }
 
-    // Fetch & render people (assumes gapi.client initialized and token set)
-    async function fetchAndRenderPeopleWithGapi() {
-      try {
-        const res = await gapi.client.people.people.connections.list({
-          resourceName: "people/me",
-          pageSize: 8,
-          personFields: "names,emailAddresses,photos"
-        });
-        const connections = res.result.connections || [];
-        suggestedBox.innerHTML = "";
-        if(connections.length === 0){
-          suggestedStatus.textContent = "Nessun Consigliato";
-        } else {
-          connections.forEach(c => {
-            const displayName = c.names?.[0]?.displayName || "Sconosciuto";
-            const email = c.emailAddresses?.[0]?.value || "";
-            const div = document.createElement("div");
-            div.className = "suggest";
-            div.innerHTML = `
-              <div class="suggest-info">
-                <div class="avatar"><i data-lucide="user"></i></div>
-                <div>
-                  <div class="name">${escapeHtml(displayName)}</div>
-                  <div class="roomtag">${escapeHtml(email)}</div>
-                </div>
-              </div>
-              <div class="actions">
-                <button class="actionbtn acceptBtn" title="Aggiungi"><i data-lucide="check"></i></button>
-                <button class="actionbtn rejectBtn" title="Rimuovi suggerimento"><i data-lucide="x"></i></button>
-              </div>
-            `;
-            div.querySelector(".acceptBtn").addEventListener("click", ()=> {
-              const room = "room_"+Math.random().toString(36).slice(2,10);
-              db.ref("users/"+currentUid+"/contacts").push({ name: displayName || "Contatto", room });
-              div.remove();
-              updateFriendsCount();
-            });
-            div.querySelector(".rejectBtn").addEventListener("click", ()=> div.remove());
-            suggestedBox.appendChild(div);
-          });
-          suggestedStatus.textContent = "Consigliati caricati";
-          lucide.createIcons();
-        }
-      } catch(e){
-        console.error("Errore People API:", e);
-        suggestedStatus.textContent = "Errore People API";
-        throw e;
+    // Helpers per presentare meglio i contatti
+    function firstNonEmpty(arr, getter){
+      if(!Array.isArray(arr)) return "";
+      for(const x of arr){
+        const v = getter(x);
+        if(v) return v;
       }
+      return "";
     }
 
-    // inizializza tokenClient (GIS)
+    function deriveDisplayName(person){
+      // 1) Nome visualizzato People
+      const byName = firstNonEmpty(person.names, n => n.displayName);
+      if(byName) return byName;
+      // 2) Email (valore o local-part)
+      const email = firstNonEmpty(person.emailAddresses, e => e.value);
+      if(email){
+        const local = email.split("@")[0];
+        return local || email;
+      }
+      // 3) Numero di telefono
+      const phone = firstNonEmpty(person.phoneNumbers, p => p.value);
+      if(phone) return phone;
+      // 4) Fallback
+      return "Contatto";
+    }
+
+    function deriveSecondary(person){
+      // Mostra preferibilmente un numero, altrimenti l'email
+      const phone = firstNonEmpty(person.phoneNumbers, p => p.value);
+      if(phone) return phone;
+      const email = firstNonEmpty(person.emailAddresses, e => e.value);
+      if(email) return email;
+      return "Nessun numero"; // richiesta: se non ci sono numeri, scrivere "Nessun Consigliato" come stato globale; qui per singolo item mostriamo "Nessun numero"
+    }
+
+    function renderSuggested(person){
+      const displayName = deriveDisplayName(person);
+      const secondary = deriveSecondary(person);
+
+      const div = document.createElement("div");
+      div.className = "suggest";
+      div.innerHTML = `
+        <div class="suggest-info">
+          <div class="avatar" aria-hidden="true">${escapeHtml(displayName.charAt(0).toUpperCase())}</div>
+          <div>
+            <div class="name">${escapeHtml(displayName)}</div>
+            <div class="roomtag">${escapeHtml(secondary)}</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="actionbtn acceptBtn" title="Aggiungi"><i data-lucide="check"></i></button>
+          <button class="actionbtn rejectBtn" title="Rimuovi suggerimento"><i data-lucide="x"></i></button>
+        </div>
+      `;
+
+      div.querySelector(".acceptBtn").addEventListener("click", ()=>{
+        const room = "room_"+Math.random().toString(36).slice(2,10);
+        db.ref("users/"+currentUid+"/contacts").push({ name: displayName || "Contatto", room });
+        div.remove();
+        updateFriendsCount();
+      });
+      div.querySelector(".rejectBtn").addEventListener("click", ()=> div.remove());
+
+      suggestedBox.appendChild(div);
+    }
+
+    // Fetch & render con People API (richiede gapi.client *e* token impostato)
+    async function fetchAndRenderPeopleWithGapi() {
+      const res = await gapi.client.people.people.connections.list({
+        resourceName: "people/me",
+        pageSize: 24, // un po' di più, così c'è più probabilità di avere numeri/nome
+        personFields: "names,emailAddresses,phoneNumbers,photos"
+      });
+      const connections = res.result.connections || [];
+      suggestedBox.innerHTML = "";
+
+      // Filtra solo contatti con almeno nome/email/numero (altrimenti sono poco utili)
+      const useful = connections.filter(c => {
+        const hasName  = c.names && c.names.some(n => n.displayName);
+        const hasEmail = c.emailAddresses && c.emailAddresses.some(e => e.value);
+        const hasPhone = c.phoneNumbers && c.phoneNumbers.some(p => p.value);
+        return hasName || hasEmail || hasPhone;
+      });
+
+      if(useful.length === 0){
+        suggestedStatus.textContent = "Nessun Consigliato";
+        lucide.createIcons();
+        return;
+      }
+
+      useful.forEach(renderSuggested);
+      suggestedStatus.textContent = `Consigliati caricati (${useful.length})`;
+      lucide.createIcons();
+    }
+
+    // Inizializza tokenClient (GIS)
     function ensureTokenClient() {
       if(tokenClient) return;
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: PEOPLE_SCOPE,
         callback: async (resp) => {
-          // Questo callback è chiamato quando il token è stato ottenuto (o c'è un errore)
           if(resp.error){
             console.error("Token error callback:", resp);
             suggestedStatus.textContent = "Permesso non concesso";
             consentiCaricaBtn.disabled = false;
             return;
           }
-          // set token on gapi if possibile
+          // Set token in gapi client se presente
           try {
             if (gapi && gapi.client && typeof gapi.client.setToken === 'function') {
               gapi.client.setToken({ access_token: resp.access_token });
@@ -572,14 +626,14 @@
             console.warn("gapi.client.setToken non disponibile:", e);
           }
 
-          // provo a recuperare i contatti
+          // Prova a chiamare l'API e renderizzare
           try {
             await fetchAndRenderPeopleWithGapi();
           } catch(e){
-            // People API fallita: stato già settato dentro la funzione
-            console.warn("fetchAndRenderPeopleWithGapi ha fallito dopo token:", e);
+            console.error("Errore People API:", e);
+            suggestedStatus.textContent = "Errore People API";
           } finally {
-            // **Nascondi il consentBox comunque dopo l'operazione** (come richiesto)
+            // Nascondi comunque il pop-up dopo il tentativo (richiesto)
             if(consentBox) consentBox.style.display = "none";
             consentiCaricaBtn.disabled = false;
           }
@@ -587,7 +641,7 @@
       });
     }
 
-    // Single combined button action: Consenti e Carica
+    // Azione unico bottone: Consenti e Carica
     consentiCaricaBtn.addEventListener("click", async () => {
       suggestedStatus.textContent = "Apertura autorizzazione...";
       consentiCaricaBtn.disabled = true;
@@ -603,9 +657,9 @@
 
       try {
         ensureTokenClient();
-        // prompt: 'consent' to force the consent screen (user gesture prevents popup blocking)
+        // User gesture → meno probabile che il popup venga bloccato
         tokenClient.requestAccessToken({ prompt: 'consent' });
-        // la callback tokenClient gestirà fetch, stato e nascondere il consentBox
+        // La callback gestisce fetch, stato e chiusura pop-up
       } catch(err){
         console.error("requestAccessToken error:", err);
         suggestedStatus.textContent = "Popup bloccato o errore";
@@ -621,11 +675,13 @@
     });
 
     /*
-      Nota sui messaggi console 'Cross-Origin-Opener-Policy policy would block the window.opener call.':
-      - Sono log generati dalla libreria Google quando prova a usare window.opener, ma il browser applica
-        COOP/COEP / politiche di sicurezza che impediscono l'accesso cross-origin.
-      - Non indicano un bug nel codice e generalmente non bloccano il flusso di autorizzazione.
-      - Per eliminarli occorrerebbe cambiare il flow (es. redirect OAuth) o settare intestazioni COOP/COEP sul server.
+      NOTE TECNICHE:
+      - I log in console "Cross-Origin-Opener-Policy policy would block the window.opener call."
+        provengono dallo script Google; non bloccano il flusso. Per rimuoverli servirebbero header COOP/COEP
+        o un flow OAuth diverso (redirect anziché popup).
+      - Se vedi ancora molti "Sconosciuto", significa che i contatti non hanno nome né email/numero.
+        In quel caso mostriamo "Contatto" come fallback nell’item e "Nessun Consigliato" come stato globale
+        se non c'è nessun contatto utile.
     */
   </script>
 </body>
