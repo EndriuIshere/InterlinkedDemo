@@ -21,17 +21,21 @@
     }
     * { box-sizing: border-box; margin:0; padding:0; }
     body {
-      min-height:auto;
+      min-height:100vh;
       background: var(--bg-dark);
       color: var(--text);
       font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
     }
     .app {
-      min-height:auto;
+      min-height:100vh;
       display:flex;
       flex-direction:column;
       padding:var(--gap);
       gap:var(--gap);
+      max-width:920px;
+      margin:12px auto;
     }
 
     /* Topbar */
@@ -64,13 +68,13 @@
       font-size:20px;
       transition: background .2s, transform .2s;
     }
-    .iconbtn:hover { background: var(--bg-hover); transform: scale(1.05); }
+    .iconbtn:hover { background: var(--bg-hover); transform: scale(1.04); }
 
     /* Menu */
     .menu { position:relative; }
     .menu .panel {
       position:absolute; right:0; top:48px;
-      min-width:200px;
+      min-width:220px;
       background: var(--bg-card);
       border:1px solid var(--border);
       border-radius:12px;
@@ -78,7 +82,8 @@
       flex-direction:column;
       padding:8px;
       box-shadow:0 12px 30px rgba(0,0,0,.5);
-      animation: fadeIn .2s ease;
+      animation: fadeIn .18s ease;
+      z-index:40;
     }
     .menu.open .panel { display:flex; }
     .panel button {
@@ -98,12 +103,12 @@
     .panel button:hover { background: var(--bg-hover); }
 
     /* Contacts */
+    .section-title { font-weight:700; font-size:0.95rem; color:var(--text-muted); margin-top:6px; }
     .contacts {
-      flex:1;
       display:flex;
       flex-direction:column;
       gap:12px;
-      margin-top:8px;
+      margin-top:6px;
     }
     .contact {
       display:flex;
@@ -149,12 +154,12 @@
       transition: background .2s;
       display:flex;
       align-items:center;
-      gap:4px;
+      gap:6px;
     }
     .actionbtn:hover { background: var(--accent); color:white; }
 
     /* Add button */
-    .add-row { display:flex; justify-content:center; margin-top:auto; }
+    .add-row { display:flex; justify-content:center; margin-top:8px; }
     .add-btn {
       width:60px; height:60px;
       border-radius:50%;
@@ -168,7 +173,7 @@
       box-shadow:0 6px 20px rgba(0,0,0,.45);
       transition: background .2s, transform .2s;
     }
-    .add-btn:hover { background: var(--accent); color:white; transform: scale(1.1); }
+    .add-btn:hover { background: var(--accent); color:white; transform: scale(1.06); }
 
     /* Modal */
     .modal-bg {
@@ -176,26 +181,25 @@
       background:rgba(0,0,0,.7);
       display:none;
       place-items:center;
-      z-index:20;
+      z-index:50;
     }
     .modal {
       background: var(--bg-card);
       border:1px solid var(--border);
       border-radius:16px;
       padding:22px;
-      width:90%;
-      max-width:420px;
+      width:92%;
+      max-width:520px;
       display:flex;
       flex-direction:column;
       gap:14px;
       box-shadow: 0 10px 40px rgba(0,0,0,.6);
-      animation: scaleIn .2s ease;
+      animation: scaleIn .18s ease;
     }
     .modal h2 {
-      font-size:1.3rem;
+      font-size:1.25rem;
       font-weight:700;
       color: var(--accent);
-      margin-bottom:6px;
     }
     .modal input {
       padding:12px;
@@ -226,7 +230,7 @@
       background: var(--bg-card);
       padding:12px;
       border-radius:14px;
-      margin-bottom:12px;
+      margin-bottom:6px;
       border:1px solid var(--border);
     }
     .req {
@@ -234,13 +238,20 @@
       justify-content:space-between;
       align-items:center;
       margin:6px 0;
+      gap:8px;
     }
     .req span { font-size:14px; }
     .req .btn { padding:6px 10px; font-size:12px; }
 
     /* Animations */
     @keyframes fadeIn { from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
-    @keyframes scaleIn { from{opacity:0; transform:scale(.9);} to{opacity:1; transform:scale(1);} }
+    @keyframes scaleIn { from{opacity:0; transform:scale(.95);} to{opacity:1; transform:scale(1);} }
+
+    /* Responsive */
+    @media (max-width:520px){
+      .topbar{ flex-direction:row; gap:8px; }
+      .modal{ padding:14px; }
+    }
   </style>
 </head>
 <body>
@@ -257,9 +268,15 @@
       </div>
     </div>
 
-    <div class="requests" id="requestsBox" style="display:none"></div>
-    <div class="contacts" id="contacts"></div>
-    <div class="add-row"><button class="add-btn" id="addContact"><i data-lucide="plus"></i></button></div>
+    <div id="requestsBox" class="requests" style="display:none"></div>
+
+    <div class="section-title">Amici - <span id="friendsCount">0</span></div>
+    <div id="contacts" class="contacts"></div>
+
+    <div class="add-row"><button class="add-btn" id="addContact" title="Invia richiesta"><i data-lucide="plus"></i></button></div>
+
+    <div class="section-title">Consigliati</div>
+    <div id="suggestedBox" class="suggested"></div>
   </div>
 
   <!-- Modal invio richiesta -->
@@ -276,11 +293,16 @@
     </div>
   </div>
 
+  <!-- Firebase compat libraries -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
+  <!-- Google API client (People API) -->
+  <script src="https://apis.google.com/js/api.js"></script>
+
   <script>
+    // ---------- CONFIG FIREBASE ----------
     firebase.initializeApp({
       apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
       authDomain: "interlinked-demo.firebaseapp.com",
@@ -295,158 +317,303 @@
     const db   = firebase.database();
     const $ = s => document.querySelector(s);
 
-    // Menu
+    // ---------- UI ELEMENTS ----------
     const menu = $("#menu");
+    const contactsEl = $("#contacts");
+    const reqBox = $("#requestsBox");
+    const suggestedBox = $("#suggestedBox");
+    const friendsCountEl = $("#friendsCount");
+
+    // Menu toggle
     menu.querySelector(".kebab").addEventListener("click", ()=> menu.classList.toggle("open"));
     document.addEventListener("click", e=>{ if(!menu.contains(e.target)) menu.classList.remove("open"); });
 
-    $("#logout").addEventListener("click", async ()=>{ 
-      await auth.signOut(); 
-      location.replace('login.html'); 
+    // Menu actions
+    $("#logout").addEventListener("click", async ()=>{ await auth.signOut(); location.replace('login.html'); });
+    $("#profile").addEventListener("click", ()=> location.href="profile.html");
+    $("#shareUid").addEventListener("click", ()=> {
+      if(!currentUid) return alert("Utente non caricato");
+      const link = `${location.origin}${location.pathname}?add=${currentUid}`;
+      if(navigator.share){
+        navigator.share({
+          title: "Interlinked",
+          text: "Aggiungimi su Interlinked!",
+          url: link
+        }).catch(()=>{});
+      } else {
+        prompt("Copia questo link:", link);
+      }
     });
 
-    $("#profile").addEventListener("click", ()=> location.href="profile.html");  
+    // ---------- AUTH & STATE ----------
+    let currentUid = null, currentName = "Utente";
+    let contactsRef = null, requestsRef = null;
 
-    let currentUid=null, currentName="", contactsRef=null, requestsRef=null;
     auth.onAuthStateChanged(async user=>{
       if(!user){ location.replace("login.html"); return; }
       currentUid = user.uid;
-
       // carica nome utente corrente
-      const snap = await db.ref("users/"+user.uid+"/profile/name").once("value");
+      const snap = await db.ref("users/"+currentUid+"/profile/name").once("value");
       currentName = snap.exists() ? snap.val() : "Utente";
 
-      initContacts(); 
+      initContacts();
       initRequests();
+      initSuggested(); // tenta di caricare suggeriti (People API) — vedi note sotto
 
-      // Share UID
-      $("#shareUid").addEventListener("click", ()=>{
-        const link = `${location.origin}${location.pathname}?add=${currentUid}`;
-        if(navigator.share){
-          navigator.share({
-            title: "Interlinked",
-            text: "Aggiungimi su Interlinked!",
-            url: link
-          }).catch(()=>{});
-        } else {
-          alert("Copia questo link: " + link);
-        }
-      });
-
-      // Se apri con ?add=UID ricevi automaticamente richiesta
+      // Se apri con ?add=UID ricevi automaticamente richiesta (invio)
       const params = new URLSearchParams(location.search);
       const addUid = params.get("add");
-      if(addUid && addUid!==currentUid){
-        const room="room_"+Math.random().toString(36).slice(2,10);
+      if(addUid && addUid !== currentUid){
+        const room = "room_"+Math.random().toString(36).slice(2,10);
+        // aggiungi contatto temporaneo al proprio nodo (chi lo accetta lo rinominerà)
         db.ref("users/"+currentUid+"/contacts").push({name:"Nuovo Contatto",room});
+        // crea request nell'account dell'altro
         db.ref("users/"+addUid+"/requests").push({from:currentUid,fromName:currentName,room});
         alert("Richiesta inviata automaticamente!");
         history.replaceState({}, document.title, location.pathname);
       }
     });
 
-    // CONTATTI
-    const contactsEl = $("#contacts");
+    // ---------- CONTATTI ----------
     function renderContact(id,data){
       const div = document.createElement("div");
       div.className="contact";
-      const info=document.createElement("div");
-      info.className="contact-info";
-      info.innerHTML=`<div class="avatar"><i data-lucide="user"></i></div><div><div class="name">${data.name}</div><div class="roomtag">#${data.room}</div></div>`;
-      info.addEventListener("click",()=> location.href="room.html#"+data.room);
-      const actions=document.createElement("div");
-      actions.className="actions";
-      const edit=document.createElement("button");
-      edit.innerHTML='<i data-lucide="edit-2"></i>'; edit.className="actionbtn";
-      edit.onclick=()=>{
-        const newName=prompt("Nuovo nome:",data.name);
-        if(newName) db.ref("users/"+currentUid+"/contacts/"+id).update({name:newName});
-      };
-      const del=document.createElement("button");
-      del.innerHTML='<i data-lucide="trash-2"></i>'; del.className="actionbtn";
-      del.onclick=()=>{ if(confirm("Eliminare "+data.name+"?")) db.ref("users/"+currentUid+"/contacts/"+id).remove(); };
-      actions.append(edit,del);
-      div.append(info,actions); 
-      div.dataset.id=id;
+      div.dataset.id = id;
+      // usare template literal ma escape di apici non necessario qui
+      div.innerHTML = `
+        <div class="contact-info">
+          <div class="avatar"><i data-lucide="user"></i></div>
+          <div>
+            <div class="name">${escapeHtml(data.name)}</div>
+            <div class="roomtag">#${escapeHtml(data.room)}</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="actionbtn editBtn" title="Rinomina"><i data-lucide="edit-2"></i></button>
+          <button class="actionbtn delBtn" title="Elimina"><i data-lucide="trash-2"></i></button>
+        </div>
+      `;
+      // click per aprire room
+      div.querySelector(".contact-info").addEventListener("click", ()=> location.href="room.html#"+data.room);
+      // edit
+      div.querySelector(".editBtn").addEventListener("click", (e)=>{ e.stopPropagation(); renameContact(id, data.name); });
+      // delete
+      div.querySelector(".delBtn").addEventListener("click", (e)=>{ e.stopPropagation(); deleteContact(id, data.name); });
+
       return div;
     }
+
     function initContacts(){
-      contactsEl.innerHTML="";
-      contactsRef=db.ref("users/"+currentUid+"/contacts");
-      contactsRef.on("child_added",s=>{
-        const node = renderContact(s.key,s.val());
-        contactsEl.append(node);
-        // inizializza lucide DOPO l'inserimento
+      contactsEl.innerHTML = "";
+      if(contactsRef) contactsRef.off();
+      contactsRef = db.ref("users/"+currentUid+"/contacts");
+      // child_added
+      contactsRef.on("child_added", s=>{
+        const node = renderContact(s.key, s.val());
+        contactsEl.appendChild(node);
         lucide.createIcons();
+        updateFriendsCount();
       });
-      contactsRef.on("child_changed",s=>{
-        const el=contactsEl.querySelector(`[data-id="${s.key}"]`);
+      // child_changed
+      contactsRef.on("child_changed", s=>{
+        const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el){
-          const newNode = renderContact(s.key,s.val());
+          const newNode = renderContact(s.key, s.val());
           el.replaceWith(newNode);
-          // re-inizializza le icone del nodo sostituito
           lucide.createIcons();
         }
       });
-      contactsRef.on("child_removed",s=>{
-        const el=contactsEl.querySelector(`[data-id="${s.key}"]`); 
+      // child_removed
+      contactsRef.on("child_removed", s=>{
+        const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el) el.remove();
+        updateFriendsCount();
       });
     }
 
-    // RICHIESTE
-    const reqBox=$("#requestsBox");
-    function renderRequest(id,r){
-      const d=document.createElement("div"); 
-      d.className="req";
-      d.dataset.id=id;
-
-      d.innerHTML=`<span>${r.fromName || "Utente"}</span>`;
-
-      const acc=document.createElement("button"); acc.className="btn"; acc.innerHTML='<i data-lucide="check"></i> Accetta';
-      const rej=document.createElement("button"); rej.className="btn"; rej.innerHTML='<i data-lucide="x"></i> Rifiuta';
-      acc.onclick=()=>{
-        db.ref("users/"+currentUid+"/contacts").push({name:r.fromName,room:r.room});
-        db.ref("users/"+r.from+"/contacts").push({name:currentName,room:r.room});
-        db.ref("users/"+currentUid+"/requests/"+id).remove();
-      };
-      rej.onclick=()=> db.ref("users/"+currentUid+"/requests/"+id).remove();
-      d.append(acc,rej); 
-      return d;
-    }
-    function initRequests(){
-      reqBox.innerHTML="";
-      requestsRef=db.ref("users/"+currentUid+"/requests");
-      requestsRef.on("child_added",s=>{
-        reqBox.style.display="block";
-        const node = renderRequest(s.key,s.val());
-        reqBox.append(node);
-        // inizializza le icone anche qui
-        lucide.createIcons();
-      });
-      requestsRef.on("child_removed",s=>{
-        const el=reqBox.querySelector(`[data-id="${s.key}"]`); 
-        if(el) el.remove();
-        if(!reqBox.children.length) reqBox.style.display="none";
-      });
+    function updateFriendsCount(){
+      const count = contactsEl.children.length;
+      friendsCountEl.textContent = count;
     }
 
-    // MODAL
-    const modalBg=$("#modalBg"), contactUidInput=$("#contactUid"), contactNameInput=$("#contactName"), modalError=$("#modalError");
-    $("#addContact").onclick=()=>{contactUidInput.value="";contactNameInput.value="";modalError.textContent="";modalBg.style.display="grid";lucide.createIcons();};
-    $("#cancelBtn").onclick=()=> modalBg.style.display="none";
-    $("#confirmBtn").onclick=()=>{
-      const otherUid=contactUidInput.value.trim(), name=contactNameInput.value.trim();
-      if(!otherUid||!name){ modalError.textContent="Completa i campi"; return; }
-      if(otherUid===currentUid){ modalError.textContent="Non puoi aggiungere te stesso"; return; }
-      const room="room_"+Math.random().toString(36).slice(2,10);
-      db.ref("users/"+currentUid+"/contacts").push({name,room});
-      db.ref("users/"+otherUid+"/requests").push({from:currentUid,fromName:currentName,room});
-      modalBg.style.display="none"; alert("Richiesta inviata!");
+    window.renameContact = (id, name) => {
+      const newName = prompt("Nuovo nome:", name);
+      if(newName && newName.trim()){
+        db.ref("users/"+currentUid+"/contacts/"+id).update({ name: newName.trim() });
+      }
     };
 
-    // Inizializza le icone statiche
+    window.deleteContact = (id, name) => {
+      if(confirm("Eliminare " + name + " ?")){
+        db.ref("users/"+currentUid+"/contacts/"+id).remove();
+      }
+    };
+
+    // ---------- RICHIESTE ----------
+    function renderRequest(id, r){
+      const d = document.createElement("div");
+      d.className = "req";
+      d.dataset.id = id;
+      d.innerHTML = `<span>${escapeHtml(r.fromName || "Utente")}</span>`;
+      const acc = document.createElement("button"); acc.className="btn"; acc.innerHTML = '<i data-lucide="check"></i> Accetta';
+      const rej = document.createElement("button"); rej.className="btn"; rej.innerHTML = '<i data-lucide="x"></i> Rifiuta';
+      acc.addEventListener("click", async ()=>{
+        // crea contatto in entrambi i nodi e rimuovi request
+        const newRoom = r.room || ("room_"+Math.random().toString(36).slice(2,10));
+        await db.ref("users/"+currentUid+"/contacts").push({ name: r.fromName || "Contatto", room: newRoom });
+        await db.ref("users/"+r.from+"/contacts").push({ name: currentName, room: newRoom });
+        await db.ref("users/"+currentUid+"/requests/"+id).remove();
+      });
+      rej.addEventListener("click", ()=> db.ref("users/"+currentUid+"/requests/"+id).remove());
+      d.append(acc, rej);
+      return d;
+    }
+
+    function initRequests(){
+      reqBox.innerHTML = "";
+      if(requestsRef) requestsRef.off();
+      requestsRef = db.ref("users/"+currentUid+"/requests");
+      requestsRef.on("child_added", s=>{
+        reqBox.style.display = "block";
+        const node = renderRequest(s.key, s.val());
+        reqBox.appendChild(node);
+        lucide.createIcons();
+      });
+      requestsRef.on("child_removed", s=>{
+        const el = reqBox.querySelector(`[data-id="${s.key}"]`);
+        if(el) el.remove();
+        if(!reqBox.children.length) reqBox.style.display = "none";
+      });
+    }
+
+    // ---------- MODAL PER INVIO RICHIESTA MANUALE ----------
+    const modalBg = $("#modalBg");
+    const contactUidInput = $("#contactUid");
+    const contactNameInput = $("#contactName");
+    const modalError = $("#modalError");
+
+    $("#addContact").addEventListener("click", ()=>{
+      contactUidInput.value = "";
+      contactNameInput.value = "";
+      modalError.textContent = "";
+      modalBg.style.display = "grid";
+      lucide.createIcons();
+    });
+    $("#cancelBtn").addEventListener("click", ()=> modalBg.style.display = "none");
+
+    $("#confirmBtn").addEventListener("click", ()=>{
+      const otherUid = contactUidInput.value.trim();
+      const name = contactNameInput.value.trim();
+      if(!otherUid || !name){ modalError.textContent = "Completa i campi"; return; }
+      if(otherUid === currentUid){ modalError.textContent = "Non puoi aggiungere te stesso"; return; }
+      const room = "room_"+Math.random().toString(36).slice(2,10);
+      db.ref("users/"+currentUid+"/contacts").push({ name, room });
+      db.ref("users/"+otherUid+"/requests").push({ from: currentUid, fromName: currentName, room });
+      modalBg.style.display = "none";
+      alert("Richiesta inviata!");
+    });
+
+    // close modal when click outside
+    modalBg.addEventListener("click", (e)=>{ if(e.target === modalBg) modalBg.style.display="none"; });
+
+    // ---------- SUGGERITI (Google People API) ----------
+    // NOTE: per far funzionare la parte consigliati devi:
+    // 1) Abilitare "People API" nel tuo Google Cloud Console.
+    // 2) Creare credenziali OAuth 2.0 (Client ID per web app) e copiare il clientId qui sotto.
+    // 3) Sostituire YOUR_API_KEY e YOUR_CLIENT_ID con i tuoi valori.
+    //
+    // Se non vuoi usare Google Contacts, la funzione initSuggested() non farà niente di invasivo.
+    function renderSuggested(contact){
+      const div = document.createElement("div");
+      div.className = "suggest";
+      const displayName = contact.names?.[0]?.displayName || "Sconosciuto";
+      const email = contact.emailAddresses?.[0]?.value || "";
+      div.innerHTML = `
+        <div class="suggest-info">
+          <div class="avatar"><i data-lucide="user"></i></div>
+          <div>
+            <div class="name">${escapeHtml(displayName)}</div>
+            <div class="roomtag">${escapeHtml(email)}</div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="actionbtn acceptBtn" title="Aggiungi"><i data-lucide="check"></i></button>
+          <button class="actionbtn rejectBtn" title="Rimuovi suggerimento"><i data-lucide="x"></i></button>
+        </div>
+      `;
+      div.querySelector(".acceptBtn").addEventListener("click", ()=>{
+        const room = "room_"+Math.random().toString(36).slice(2,10);
+        db.ref("users/"+currentUid+"/contacts").push({ name: displayName || "Contatto", room });
+        div.remove();
+        updateFriendsCount();
+      });
+      div.querySelector(".rejectBtn").addEventListener("click", ()=> div.remove());
+      suggestedBox.appendChild(div);
+      lucide.createIcons();
+    }
+
+    function initSuggested(){
+      // Prova a caricare i contatti Google — richiede API key + client id
+      try {
+        if(!window.gapi) {
+          console.warn("gapi non caricato; suggeriti disabilitati.");
+          return;
+        }
+        gapi.load("client:auth2", ()=>{
+          gapi.client.init({
+            apiKey: "85117709871-0manlo4e4ekp0mhh8kv7n310ru7osgh2.apps.googleusercontent.com", // <-- SOSTITUISCI QUI
+            clientId: "85117709871-0manlo4e4ekp0mhh8kv7n310ru7osgh2.apps.googleusercontent.com", // <-- SOSTITUISCI QUI
+            discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"],
+            scope: "https://www.googleapis.com/auth/contacts.readonly"
+          }).then(()=>{
+            const authInstance = gapi.auth2.getAuthInstance();
+            if(!authInstance.isSignedIn.get()){
+              // apri prompt di login Google (user dovrà dare consenso)
+              authInstance.signIn().catch(err=>{
+                console.warn("Google signIn rifiutato o fallito:", err);
+              });
+            }
+            // Ora chiama People API per ottenere fino a 8 contatti
+            gapi.client.people.people.connections.list({
+              resourceName: "people/me",
+              pageSize: 8,
+              personFields: "names,emailAddresses,photos"
+            }).then(res=>{
+              const connections = res.result.connections || [];
+              // Svuota box prima di riempire
+              suggestedBox.innerHTML = "";
+              connections.forEach(c => renderSuggested(c));
+            }).catch(err=>{
+              console.warn("Errore People API:", err);
+            });
+          }).catch(err=>{
+            console.warn("gapi.client.init fallito:", err);
+          });
+        });
+      } catch(e){
+        console.warn("initSuggested error:", e);
+      }
+    }
+
+    // Utility semplice per evitare injection in innerHTML (nomi, mail)
+    function escapeHtml(str){
+      if(!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // inizializza le icone statiche all'avvio
     lucide.createIcons();
+
+    // pulizia: quando la finestra si chiude, stacca listeners Firebase (non strettamente necessario)
+    window.addEventListener("beforeunload", ()=>{
+      if(contactsRef) contactsRef.off();
+      if(requestsRef) requestsRef.off();
+    });
   </script>
 </body>
 </html>
