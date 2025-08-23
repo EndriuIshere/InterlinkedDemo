@@ -159,72 +159,9 @@
     }
     .actionbtn:hover { background: var(--accent); color:white; }
 
-    /* (Nota: il pulsante manuale è stato rimosso dall'HTML) */
-    .add-row { display:flex; justify-content:center; margin-top:8px; }
-    .add-btn {
-      width:60px; height:60px;
-      border-radius:50%;
-      border:2px solid var(--accent);
-      background: var(--bg-card);
-      color: var(--accent);
-      font-size:28px;
-      cursor:pointer;
-      display:grid;
-      place-items:center;
-      box-shadow:0 6px 20px rgba(0,0,0,.45);
-      transition: background .2s, transform .2s;
-    }
-    .add-btn:hover { background: var(--accent); color:white; transform: scale(1.06); }
+    /* Add button area removed from UI as requested */
 
-    /* Modal */
-    .modal-bg {
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.7);
-      display:none;
-      place-items:center;
-      z-index:50;
-    }
-    .modal {
-      background: var(--bg-card);
-      border:1px solid var(--border);
-      border-radius:16px;
-      padding:22px;
-      width:92%;
-      max-width:520px;
-      display:flex;
-      flex-direction:column;
-      gap:14px;
-      box-shadow: 0 10px 40px rgba(0,0,0,.6);
-      animation: scaleIn .18s ease;
-    }
-    .modal h2 {
-      font-size:1.25rem;
-      font-weight:700;
-      color: var(--accent);
-    }
-    .modal input {
-      padding:12px;
-      border-radius:12px;
-      border:1px solid var(--border);
-      background: var(--bg-hover);
-      color:var(--text);
-      font-size:14px;
-    }
-    .modal .buttons { display:flex; justify-content:flex-end; gap:10px; }
-    .btn {
-      padding:10px 16px;
-      border-radius:10px;
-      border:1px solid var(--border);
-      background: var(--bg-hover);
-      color:var(--text);
-      cursor:pointer;
-      transition: background .2s;
-      display:flex;
-      align-items:center;
-      gap:6px;
-    }
-    .btn:hover { background: var(--accent); color:white; }
-    .error { color: var(--danger); font-size:.9rem; min-height:1em; }
+    /* Modal removed from UI as requested */
 
     /* Requests */
     .requests {
@@ -243,6 +180,22 @@
     }
     .req span { font-size:14px; }
     .req .btn { padding:6px 10px; font-size:12px; }
+
+    /* Suggested box (kept as container, button removed) */
+    .suggest {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: var(--bg-card);
+      margin-bottom:8px;
+      gap:12px;
+    }
+    .suggest .suggest-info { display:flex; gap:10px; align-items:center; }
+    .suggest .name { font-weight:600; font-size:14px; }
+    .suggest .roomtag { font-size:12px; color:var(--text-muted); }
 
     /* Animations */
     @keyframes fadeIn { from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
@@ -274,28 +227,9 @@
     <div class="section-title">Amici - <span id="friendsCount">0</span></div>
     <div id="contacts" class="contacts"></div>
 
-    <!-- Bottone manuale rimosso: l'apertura del modal per invio richiesta avviene automaticamente all'ingresso (se non ci sono contatti) -->
-
     <div class="section-title">Consigliati</div>
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-      <button id="loadSuggestedBtn" class="btn"><i data-lucide="download-cloud"></i> Carica consigliati</button>
-      <div id="suggestedStatus" style="color:var(--text-muted);font-size:14px">Non caricati</div>
-    </div>
+    <!-- Pulsante "Carica consigliati" rimosso come richiesto -->
     <div id="suggestedBox" class="suggested"></div>
-  </div>
-
-  <!-- Modal invio richiesta -->
-  <div class="modal-bg" id="modalBg">
-    <div class="modal">
-      <h2>Invia richiesta contatto</h2>
-      <input type="text" id="contactUid" placeholder="UID dell'altro utente" />
-      <input type="text" id="contactName" placeholder="Nome da salvare" />
-      <div id="modalError" class="error"></div>
-      <div class="buttons">
-        <button class="btn" id="cancelBtn"><i data-lucide="x"></i> Annulla</button>
-        <button class="btn" id="confirmBtn"><i data-lucide="send"></i> Invia</button>
-      </div>
-    </div>
   </div>
 
   <!-- Firebase compat libraries -->
@@ -303,7 +237,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
-  <!-- GAPI + GIS -->
+  <!-- GAPI + GIS (lasciati nel caso in futuro si riattivi il caricamento suggeriti) -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -324,6 +258,7 @@
     const $ = s => document.querySelector(s);
 
     // ---------- GOOGLE / PEOPLE API CONFIG ----------
+    // Tenuti per compatibilità futura; il pulsante per l'uso manuale è stato rimosso.
     const GOOGLE_API_KEY = "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto";
     const GOOGLE_CLIENT_ID = "85117709871-gsg2aanikj3n8vrkmsga22i6v48rd4eq.apps.googleusercontent.com";
 
@@ -332,8 +267,6 @@
     const contactsEl = $("#contacts");
     const reqBox = $("#requestsBox");
     const suggestedBox = $("#suggestedBox");
-    const suggestedStatus = $("#suggestedStatus");
-    const loadSuggestedBtn = $("#loadSuggestedBtn");
     const friendsCountEl = $("#friendsCount");
 
     // Menu toggle
@@ -380,25 +313,9 @@
         db.ref("users/"+addUid+"/requests").push({from:currentUid,fromName:currentName,room});
         alert("Richiesta inviata automaticamente!");
         history.replaceState({}, document.title, location.pathname);
-        return; // non aprire il modal automatico in questo caso
       }
-
-      // NUOVA LOGICA: se l'utente non ha ancora contatti, apriamo automaticamente il modal per inviare una richiesta
-      try {
-        const contactsSnap = await db.ref("users/"+currentUid+"/contacts").once("value");
-        if(!contactsSnap.exists()){
-          // Mostra modal per inviare richiesta (la user compila UID e Nome)
-          contactUidInput.value = "";
-          contactNameInput.value = "";
-          modalError.textContent = "";
-          modalBg.style.display = "grid";
-          lucide.createIcons();
-        }
-      } catch(err){
-        console.error("Errore nel controllo contatti:", err);
-      }
-
-      // initSuggested() is not called automatically — user clicks the button to load suggestions
+      // NOTA: non apriamo alcun modal automatico per aggiungere tramite UID,
+      // poiché la funzionalità manuale è stata rimossa e si usa il link ?add=UID.
     });
 
     // ---------- CONTATTI ----------
@@ -515,30 +432,9 @@
       });
     }
 
-    // ---------- MODAL PER INVIO RICHIESTA (ora si apre automaticamente in certe condizioni) ----------
-    const modalBg = $("#modalBg");
-    const contactUidInput = $("#contactUid");
-    const contactNameInput = $("#contactName");
-    const modalError = $("#modalError");
-
-    // Nota: il pulsante manuale è stato rimosso. Il modal viene aperto automaticamente all'accesso
-    $("#cancelBtn").addEventListener("click", ()=> modalBg.style.display = "none");
-
-    $("#confirmBtn").addEventListener("click", ()=>{
-      const otherUid = contactUidInput.value.trim();
-      const name = contactNameInput.value.trim();
-      if(!otherUid || !name){ modalError.textContent = "Completa i campi"; return; }
-      if(otherUid === currentUid){ modalError.textContent = "Non puoi aggiungere te stesso"; return; }
-      const room = "room_"+Math.random().toString(36).slice(2,10);
-      db.ref("users/"+currentUid+"/contacts").push({ name, room });
-      db.ref("users/"+otherUid+"/requests").push({ from: currentUid, fromName:currentName, room });
-      modalBg.style.display = "none";
-      alert("Richiesta inviata!");
-    });
-
-    modalBg.addEventListener("click", (e)=>{ if(e.target === modalBg) modalBg.style.display="none"; });
-
-    // ---------- SUGGERITI (People API) - GIS + gapi.client (modern flow) ----------
+    // ---------- SUGGERITI (People API) ----------
+    // Ho mantenuto il codice di caricamento suggeriti come funzione riutilizzabile
+    // ma il pulsante manuale è stato rimosso dall'interfaccia per rispettare la tua richiesta.
     let tokenClient = null;
 
     function renderSuggested(contact){
@@ -571,7 +467,7 @@
     }
 
     async function loadSuggestedContacts(){
-      suggestedStatus.textContent = "Caricamento…";
+      // funzione disponibile, ma non legata a un bottone nell'UI
       try {
         // 1) Load gapi client
         await new Promise((res, rej) => {
@@ -590,7 +486,6 @@
             callback: async (resp) => {
               if(resp.error){
                 console.error("Token error:", resp);
-                suggestedStatus.textContent = "Permesso non concesso";
                 return;
               }
               // Settiamo token OAuth su gapi
@@ -606,14 +501,12 @@
                 const connections = res.result.connections || [];
                 suggestedBox.innerHTML = "";
                 if(connections.length === 0){
-                  suggestedStatus.textContent = "Nessun contatto trovato";
+                  // niente da mostrare
                 } else {
                   connections.forEach(c => renderSuggested(c));
-                  suggestedStatus.textContent = "Consigliati caricati";
                 }
               } catch(apiErr){
                 console.error("People API error:", apiErr);
-                suggestedStatus.textContent = "Errore People API";
               }
             }
           });
@@ -624,11 +517,8 @@
 
       } catch(err){
         console.error("Errore loadSuggestedContacts:", err);
-        suggestedStatus.textContent = "Consigliati non disponibili";
       }
     }
-
-    loadSuggestedBtn.addEventListener("click", loadSuggestedContacts);
 
     // ---------- icone ----------
     lucide.createIcons();
