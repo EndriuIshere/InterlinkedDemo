@@ -159,7 +159,7 @@
     }
     .actionbtn:hover { background: var(--accent); color:white; }
 
-    /* Add button */
+    /* (Nota: il pulsante manuale è stato rimosso dall'HTML) */
     .add-row { display:flex; justify-content:center; margin-top:8px; }
     .add-btn {
       width:60px; height:60px;
@@ -274,7 +274,7 @@
     <div class="section-title">Amici - <span id="friendsCount">0</span></div>
     <div id="contacts" class="contacts"></div>
 
-    <div class="add-row"><button class="add-btn" id="addContact" title="Invia richiesta"><i data-lucide="plus"></i></button></div>
+    <!-- Bottone manuale rimosso: l'apertura del modal per invio richiesta avviene automaticamente all'ingresso (se non ci sono contatti) -->
 
     <div class="section-title">Consigliati</div>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
@@ -324,10 +324,7 @@
     const $ = s => document.querySelector(s);
 
     // ---------- GOOGLE / PEOPLE API CONFIG ----------
-    // NOTE: la API Key viene dalla tua config Firebase (puoi sostituirla se preferisci)
     const GOOGLE_API_KEY = "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto";
-    // Usa il Client ID del tuo OAuth client (quello creato in Google Cloud)
-    // Se cambi Client ID, ricordati di aggiornare Authorized JavaScript origins nella Console
     const GOOGLE_CLIENT_ID = "85117709871-gsg2aanikj3n8vrkmsga22i6v48rd4eq.apps.googleusercontent.com";
 
     // ---------- UI ELEMENTS ----------
@@ -373,7 +370,6 @@
 
       initContacts();
       initRequests();
-      // initSuggested() is not called automatically — user clicks the button to load suggestions
 
       // Se apri con ?add=UID ricevi automaticamente richiesta (invio)
       const params = new URLSearchParams(location.search);
@@ -384,7 +380,25 @@
         db.ref("users/"+addUid+"/requests").push({from:currentUid,fromName:currentName,room});
         alert("Richiesta inviata automaticamente!");
         history.replaceState({}, document.title, location.pathname);
+        return; // non aprire il modal automatico in questo caso
       }
+
+      // NUOVA LOGICA: se l'utente non ha ancora contatti, apriamo automaticamente il modal per inviare una richiesta
+      try {
+        const contactsSnap = await db.ref("users/"+currentUid+"/contacts").once("value");
+        if(!contactsSnap.exists()){
+          // Mostra modal per inviare richiesta (la user compila UID e Nome)
+          contactUidInput.value = "";
+          contactNameInput.value = "";
+          modalError.textContent = "";
+          modalBg.style.display = "grid";
+          lucide.createIcons();
+        }
+      } catch(err){
+        console.error("Errore nel controllo contatti:", err);
+      }
+
+      // initSuggested() is not called automatically — user clicks the button to load suggestions
     });
 
     // ---------- CONTATTI ----------
@@ -501,19 +515,13 @@
       });
     }
 
-    // ---------- MODAL PER INVIO RICHIESTA MANUALE ----------
+    // ---------- MODAL PER INVIO RICHIESTA (ora si apre automaticamente in certe condizioni) ----------
     const modalBg = $("#modalBg");
     const contactUidInput = $("#contactUid");
     const contactNameInput = $("#contactName");
     const modalError = $("#modalError");
 
-    $("#addContact").addEventListener("click", ()=>{
-      contactUidInput.value = "";
-      contactNameInput.value = "";
-      modalError.textContent = "";
-      modalBg.style.display = "grid";
-      lucide.createIcons();
-    });
+    // Nota: il pulsante manuale è stato rimosso. Il modal viene aperto automaticamente all'accesso
     $("#cancelBtn").addEventListener("click", ()=> modalBg.style.display = "none");
 
     $("#confirmBtn").addEventListener("click", ()=>{
@@ -523,7 +531,7 @@
       if(otherUid === currentUid){ modalError.textContent = "Non puoi aggiungere te stesso"; return; }
       const room = "room_"+Math.random().toString(36).slice(2,10);
       db.ref("users/"+currentUid+"/contacts").push({ name, room });
-      db.ref("users/"+otherUid+"/requests").push({ from: currentUid, fromName: currentName, room });
+      db.ref("users/"+otherUid+"/requests").push({ from: currentUid, fromName:currentName, room });
       modalBg.style.display = "none";
       alert("Richiesta inviata!");
     });
@@ -531,8 +539,6 @@
     modalBg.addEventListener("click", (e)=>{ if(e.target === modalBg) modalBg.style.display="none"; });
 
     // ---------- SUGGERITI (People API) - GIS + gapi.client (modern flow) ----------
-    // We'll use google.accounts.oauth2.initTokenClient to get an access token,
-    // then set that token on gapi.client and call People API.
     let tokenClient = null;
 
     function renderSuggested(contact){
