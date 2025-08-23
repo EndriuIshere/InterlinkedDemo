@@ -19,6 +19,7 @@
       --text: #e5e7eb;
       --text-muted: #94a3b8;
       --danger: #ef4444;
+      --success: #10b981;
     }
     * { box-sizing: border-box; margin:0; padding:0; }
     body {
@@ -159,10 +160,6 @@
     }
     .actionbtn:hover { background: var(--accent); color:white; }
 
-    /* Add button area removed from UI as requested */
-
-    /* Modal removed from UI as requested */
-
     /* Requests */
     .requests {
       background: var(--bg-card);
@@ -181,7 +178,7 @@
     .req span { font-size:14px; }
     .req .btn { padding:6px 10px; font-size:12px; }
 
-    /* Suggested box (kept as container, button removed) */
+    /* Suggested box */
     .suggest {
       display:flex;
       align-items:center;
@@ -197,6 +194,28 @@
     .suggest .name { font-weight:600; font-size:14px; }
     .suggest .roomtag { font-size:12px; color:var(--text-muted); }
 
+    /* Notice (fallback popup blocked) */
+    .notice {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color:var(--text-muted);
+      margin-bottom:10px;
+    }
+    .notice .btn {
+      padding:8px 12px;
+      border-radius:8px;
+      border:1px solid var(--border);
+      background: var(--bg-hover);
+      color:var(--text);
+      cursor:pointer;
+    }
+    .notice .btn:hover { background: var(--accent); color:white; }
+
     /* Animations */
     @keyframes fadeIn { from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
     @keyframes scaleIn { from{opacity:0; transform:scale(.95);} to{opacity:1; transform:scale(1);} }
@@ -204,7 +223,6 @@
     /* Responsive */
     @media (max-width:520px){
       .topbar{ flex-direction:row; gap:8px; }
-      .modal{ padding:14px; }
     }
   </style>
 </head>
@@ -228,7 +246,13 @@
     <div id="contacts" class="contacts"></div>
 
     <div class="section-title">Consigliati</div>
-    <!-- Pulsante "Carica consigliati" rimosso come richiesto -->
+
+    <!-- Notice di fallback per popup bloccato -->
+    <div id="suggestedNotice" class="notice" style="display:none">
+      <div style="flex:1">Per visualizzare i suggeriti devi autorizzare l'accesso ai tuoi contatti Google. Clicca il pulsante per autorizzare.</div>
+      <button id="authorizeSuggestedBtn" class="btn">Autorizza contatti</button>
+    </div>
+
     <div id="suggestedBox" class="suggested"></div>
   </div>
 
@@ -237,7 +261,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
-  <!-- GAPI + GIS (lasciati nel caso in futuro si riattivi il caricamento suggeriti) -->
+  <!-- GAPI + GIS -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -258,7 +282,6 @@
     const $ = s => document.querySelector(s);
 
     // ---------- GOOGLE / PEOPLE API CONFIG ----------
-    // Tenuti per compatibilità futura; il pulsante per l'uso manuale è stato rimosso.
     const GOOGLE_API_KEY = "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto";
     const GOOGLE_CLIENT_ID = "85117709871-gsg2aanikj3n8vrkmsga22i6v48rd4eq.apps.googleusercontent.com";
 
@@ -267,6 +290,8 @@
     const contactsEl = $("#contacts");
     const reqBox = $("#requestsBox");
     const suggestedBox = $("#suggestedBox");
+    const suggestedNotice = $("#suggestedNotice");
+    const authorizeSuggestedBtn = $("#authorizeSuggestedBtn");
     const friendsCountEl = $("#friendsCount");
 
     // Menu toggle
@@ -316,8 +341,6 @@
       }
 
       // CARICAMENTO AUTOMATICO DEI SUGGERITI ALL'APERTURA DELLA PAGINA
-      // (tentiamo il caricamento; se l'utente non concede permessi o qualcosa fallisce,
-      // la funzione gestirà l'errore internamente)
       loadSuggestedContacts();
     });
 
@@ -436,8 +459,8 @@
     }
 
     // ---------- SUGGERITI (People API) ----------
-    // Funzione per attendere che google.accounts.oauth2 sia disponibile
-    function waitForGISReady(timeoutMs = 5000) {
+    // Funzione che attende che google.accounts.oauth2 sia disponibile
+    function waitForGISReady(timeoutMs = 7000) {
       return new Promise((resolve, reject) => {
         const start = Date.now();
         (function poll() {
@@ -453,6 +476,7 @@
     }
 
     let tokenClient = null;
+    let lastTokenRequestTime = 0;
 
     function renderSuggested(contact){
       const div = document.createElement("div");
@@ -483,10 +507,9 @@
       lucide.createIcons();
     }
 
-    async function loadSuggestedContacts(){
+    async function loadSuggestedContacts(fromUserGesture = false){
       // Carica suggeriti automaticamente all'apertura.
-      // Attenzione: questa funzione richiede che l'utente conceda permessi tramite la finestra
-      // di consenso Google. Se l'utente chiude il popup o rifiuta, non appariranno suggeriti.
+      // Se il popup viene bloccato, mostriamo un pulsante che l'utente può cliccare per autorizzare.
       try {
         // 1) Load gapi client
         await new Promise((res, rej) => {
@@ -500,12 +523,13 @@
           discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"]
         });
 
-        // 2) Wait for GIS (google.accounts.oauth2) to be available
+        // 2) Wait for GIS to be available
         try {
           await waitForGISReady(7000);
         } catch(waitErr){
           console.warn("GIS non pronto:", waitErr);
-          // Non blocchiamo l'app: usciamo silenziosamente
+          // In questo caso attiviamo il fallback visuale per permettere all'utente di forzare l'autorizzazione
+          showSuggestedNotice();
           return;
         }
 
@@ -515,15 +539,22 @@
             client_id: GOOGLE_CLIENT_ID,
             scope: 'https://www.googleapis.com/auth/contacts.readonly',
             callback: async (resp) => {
+              // Questa callback viene invocata sia se il popup è stato aperto correttamente
+              // sia dopo che l'utente ha cliccato l'avviso (user gesture).
+              lastTokenRequestTime = Date.now();
               if(resp.error){
                 console.error("Token error:", resp);
+                // Mostriamo fallback nel caso in cui il token non arrivi
+                showSuggestedNotice();
                 return;
               }
-              // Settiamo token OAuth su gapi
+              // Nascondi eventualmente il messaggio di autorizzazione
+              hideSuggestedNotice();
+
+              // Set token su gapi e chiami People API
               gapi.client.setToken({ access_token: resp.access_token });
 
               try {
-                // 4) Chiamata People API
                 const res = await gapi.client.people.people.connections.list({
                   resourceName: "people/me",
                   pageSize: 8,
@@ -532,7 +563,7 @@
                 const connections = res.result.connections || [];
                 suggestedBox.innerHTML = "";
                 if(connections.length === 0){
-                  // Nessun contatto trovato: lasciamo box vuoto
+                  // niente da mostrare
                 } else {
                   connections.forEach(c => renderSuggested(c));
                 }
@@ -543,14 +574,99 @@
           });
         }
 
-        // 5) Richiesta token OAuth (apre popup di consenso se necessario)
-        // prompt:'' chiede il token senza forzare re-consent quando possibile
-        tokenClient.requestAccessToken({ prompt: '' });
+        // 4) Request token
+        // la chiamata può essere bloccata dal browser se non è legata a un gesto utente.
+        // Proviamo comunque, e se il token non arriva entro breve, mostriamo il pulsante.
+        const before = Date.now();
+        try {
+          tokenClient.requestAccessToken({ prompt: '' });
+        } catch(reqErr){
+          // Alcune implementazioni possono lanciare immediatamente; fallback
+          console.warn("requestAccessToken ha lanciato errore sincrono:", reqErr);
+          showSuggestedNotice();
+          return;
+        }
+
+        // 5) Dopo un breve tempo, se non abbiamo un token, presumiamo che il popup sia stato bloccato
+        setTimeout(() => {
+          const t = gapi.client.getToken && gapi.client.getToken();
+          const hasToken = t && t.access_token;
+          if(!hasToken){
+            // Se non abbiamo token, mostra il messaggio di autorizzazione
+            showSuggestedNotice();
+          } else {
+            hideSuggestedNotice();
+          }
+        }, 900);
 
       } catch(err){
         console.error("Errore loadSuggestedContacts:", err);
+        // Mostriamo il pulsante di fallback per permettere all'utente di riprovare
+        showSuggestedNotice();
       }
     }
+
+    function showSuggestedNotice(){
+      if(suggestedNotice) suggestedNotice.style.display = "flex";
+    }
+    function hideSuggestedNotice(){
+      if(suggestedNotice) suggestedNotice.style.display = "none";
+    }
+
+    // Quando l'utente clicca "Autorizza contatti" lo consideriamo un gesto utente quindi
+    // possiamo richiedere il token senza essere bloccati.
+    authorizeSuggestedBtn.addEventListener("click", async () => {
+      // Se GIS non pronto, attendi rapidamente
+      try {
+        await waitForGISReady(7000);
+      } catch(e){
+        console.warn("GIS ancora non pronto al click:", e);
+        // proviamo comunque a caricare gapi e re-invocare loadSuggestedContacts
+      }
+      // Richiesta con prompt 'consent' per forzare il popup/consent (user gesture)
+      if(!tokenClient){
+        // forza inizializzazione tokenClient (se non presente)
+        try {
+          tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/contacts.readonly',
+            callback: async (resp) => {
+              if(resp.error){
+                console.error("Token error su click:", resp);
+                showSuggestedNotice();
+                return;
+              }
+              hideSuggestedNotice();
+              gapi.client.setToken({ access_token: resp.access_token });
+              try {
+                const res = await gapi.client.people.people.connections.list({
+                  resourceName: "people/me",
+                  pageSize: 8,
+                  personFields: "names,emailAddresses,photos"
+                });
+                const connections = res.result.connections || [];
+                suggestedBox.innerHTML = "";
+                if(connections.length === 0){
+                } else {
+                  connections.forEach(c => renderSuggested(c));
+                }
+              } catch(apiErr){
+                console.error("People API error after click:", apiErr);
+              }
+            }
+          });
+        } catch(initErr){
+          console.error("Errore init tokenClient on click:", initErr);
+        }
+      }
+
+      try {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } catch(err){
+        console.error("requestAccessToken on click ha fallito:", err);
+        showSuggestedNotice();
+      }
+    });
 
     // ---------- icone ----------
     lucide.createIcons();
