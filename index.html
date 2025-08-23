@@ -565,15 +565,10 @@
     }
 
     async function loadSuggestedContacts(){
-      if(!GOOGLE_API_KEY){
-        alert("Configura la GOOGLE_API_KEY");
-        return;
-      }
       suggestedStatus.textContent = "Caricamento…";
       try {
         // 1) Load gapi client
         await new Promise((res, rej) => {
-          if(typeof gapi === "undefined") return rej(new Error("gapi non caricato"));
           gapi.load("client", { callback: res, onerror: rej });
         });
 
@@ -582,7 +577,7 @@
           discoveryDocs: ["https://people.googleapis.com/discovery/v1/apis/people/v1/rest"]
         });
 
-        // 2) Init GIS token client
+        // 2) Init GIS token client (solo una volta)
         if(!tokenClient){
           tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
@@ -593,9 +588,11 @@
                 suggestedStatus.textContent = "Permesso non concesso";
                 return;
               }
+              // Settiamo token OAuth su gapi
               gapi.client.setToken({ access_token: resp.access_token });
 
               try {
+                // 3) Chiamata People API
                 const res = await gapi.client.people.people.connections.list({
                   resourceName: "people/me",
                   pageSize: 8,
@@ -617,8 +614,8 @@
           });
         }
 
-        // 3) Request token (popup consent)
-        tokenClient.requestAccessToken();
+        // 4) Richiesta token OAuth (apre popup di consenso se necessario)
+        tokenClient.requestAccessToken({ prompt: '' });
 
       } catch(err){
         console.error("Errore loadSuggestedContacts:", err);
