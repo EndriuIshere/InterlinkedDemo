@@ -19,6 +19,7 @@
       --text: #e5e7eb;
       --text-muted: #94a3b8;
       --danger: #ef4444;
+      --success: #10b981;
     }
     * { box-sizing: border-box; margin:0; padding:0; }
     body {
@@ -193,27 +194,43 @@
     .suggest .name { font-weight:600; font-size:14px; }
     .suggest .roomtag { font-size:12px; color:var(--text-muted); }
 
-    /* Notice (fallback popup blocked) */
-    .notice {
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding:10px;
+    .status-text { color:var(--text-muted); font-size:14px; margin-bottom:8px; }
+
+    .btn {
+      padding:10px 14px;
       border-radius:10px;
-      border:1px solid var(--border);
-      background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-      color:var(--text-muted);
-      margin-bottom:10px;
-    }
-    .notice .btn {
-      padding:8px 12px;
-      border-radius:8px;
       border:1px solid var(--border);
       background: var(--bg-hover);
       color:var(--text);
       cursor:pointer;
+      display:flex;
+      gap:8px;
+      align-items:center;
     }
-    .notice .btn:hover { background: var(--accent); color:white; }
+    .btn:hover { background: var(--accent); color:white; }
+
+    /* The "popup-like" consent box under Consigliati */
+    .consent-box {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:14px;
+      margin-bottom:10px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      color:var(--text-muted);
+    }
+    .consent-text {
+      flex:1;
+      font-size:14px;
+      line-height:1.3;
+    }
+    .consent-actions {
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
 
     /* Animations */
     @keyframes fadeIn { from{opacity:0; transform:translateY(-6px);} to{opacity:1; transform:translateY(0);} }
@@ -222,6 +239,8 @@
     /* Responsive */
     @media (max-width:520px){
       .topbar{ flex-direction:row; gap:8px; }
+      .consent-box { flex-direction:column; align-items:flex-start; }
+      .consent-actions { width:100%; justify-content:flex-end; }
     }
   </style>
 </head>
@@ -246,12 +265,18 @@
 
     <div class="section-title">Consigliati</div>
 
-    <!-- Notice di fallback per popup bloccato / per avviare autorizzazione -->
-    <div id="suggestedNotice" class="notice" style="display:none">
-      <div style="flex:1">Per visualizzare i suggeriti devi autorizzare l'accesso ai tuoi contatti Google. Clicca il pulsante per autorizzare.</div>
-      <button id="authorizeSuggestedBtn" class="btn">Autorizza contatti</button>
+    <!-- POP-UP-LIKE BOX sotto i consigliati, con testo lungo e UNICO pulsante "Consenti e Carica" -->
+    <div id="consentBox" class="consent-box">
+      <div class="consent-text">
+        Per mostrarti i suggerimenti dai tuoi contatti Google dobbiamo accedere alla tua rubrica (solo lettura).
+        Clicca <strong>Consenti e Carica</strong> per aprire la finestra di autorizzazione Google e caricare subito i suggeriti.
+      </div>
+      <div class="consent-actions">
+        <button id="consentiCaricaBtn" class="btn"><i data-lucide="download-cloud"></i> Consenti e Carica</button>
+      </div>
     </div>
 
+    <div id="suggestedStatus" class="status-text">Non caricati</div>
     <div id="suggestedBox" class="suggested"></div>
   </div>
 
@@ -265,12 +290,6 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <script>
-    // ---------------- CONFIG ----------------
-    // Imposta true per usare il redirect flow (la pagina verrà ricaricata verso Google e poi tornerà con access_token nell'URL).
-    // ATTENZIONE: se abiliti redirect flow, assicurati che l'URI di redirect (location.origin + location.pathname)
-    // sia registrato nella Google Console per il tuo client_id.
-    const USE_REDIRECT_FLOW = false;
-
     // ---------- CONFIG FIREBASE ----------
     firebase.initializeApp({
       apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
@@ -295,8 +314,9 @@
     const contactsEl = $("#contacts");
     const reqBox = $("#requestsBox");
     const suggestedBox = $("#suggestedBox");
-    const suggestedNotice = $("#suggestedNotice");
-    const authorizeSuggestedBtn = $("#authorizeSuggestedBtn");
+    const suggestedStatus = $("#suggestedStatus");
+    const consentBox = $("#consentBox");
+    const consentiCaricaBtn = $("#consentiCaricaBtn");
     const friendsCountEl = $("#friendsCount");
 
     // Menu toggle
@@ -345,28 +365,8 @@
         history.replaceState({}, document.title, location.pathname);
       }
 
-      // WHEN: tentativo di caricare suggeriti all'apertura
-      // Se usi redirect flow e non hai token nell'URL, effettuiamo redirect automatico (può essere utile per auto).
-      // Altrimenti: non apriremo popup automaticamente (verrà bloccato): mostriamo il bottone che l'utente può cliccare.
-      await maybeHandleTokenFromUrl(); // gestisce il caso in cui siamo tornati da redirect (token nel fragment)
-
-      if (USE_REDIRECT_FLOW) {
-        // se non abbiamo token e vogliamo redirect, facciamo redirect automatico
-        if (!hasGapiToken()) {
-          startRedirectOAuth();
-          return; // la pagina verrà ricaricata
-        }
-      }
-
-      // Caricamento automatico dei suggeriti **solo** se abbiamo già un token (es. tornati dal redirect)
-      if (hasGapiToken()) {
-        // token già presente in gapi => chiama People API
-        try { await fetchAndRenderPeople(); }
-        catch(e){ console.warn("fetchAndRenderPeople failed:", e); showSuggestedNotice(); }
-      } else {
-        // token non presente: mostriamo il bottone di autorizzazione (fallback user-gesture)
-        showSuggestedNotice();
-      }
+      // iniziale
+      suggestedStatus.textContent = "Non caricati";
     });
 
     // ---------- CONTATTI ----------
@@ -484,73 +484,23 @@
     }
 
     // ---------- SUGGERITI (People API) ----------
-    // Utilizziamo GIS (google.accounts.oauth2) e gapi client.
-    // Se popup bloccati -> mostriamo avviso con bottone che crea il gesto utente.
-    // Se preferisci il redirect flow, abilita USE_REDIRECT_FLOW = true all'inizio del file.
+    let tokenClient = null;
 
-    // helper: attende GIS ready
-    function waitForGISReady(timeoutMs = 7000) {
-      return new Promise((resolve, reject) => {
-        const start = Date.now();
-        (function poll() {
-          if (window.google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initTokenClient === 'function') {
-            return resolve();
-          }
-          if (Date.now() - start > timeoutMs) {
-            return reject(new Error("Google Identity Services (GIS) non disponibile entro timeout"));
-          }
-          setTimeout(poll, 100);
-        })();
+    // helper to init gapi client
+    async function ensureGapiClient() {
+      return new Promise((res, rej) => {
+        if (typeof gapi === 'undefined') return rej(new Error("gapi non presente"));
+        gapi.load("client", { callback: async () => {
+          try {
+            await gapi.client.init({ discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"] });
+            res();
+          } catch(e){ rej(e); }
+        }, onerror: rej });
       });
     }
 
-    // tokenClient usato nel flow popup/GIS
-    let tokenClient = null;
-
-    // controlla se gapi ha token già settato
-    function hasGapiToken(){
-      try {
-        const t = gapi && gapi.client && gapi.client.getToken && gapi.client.getToken();
-        return !!(t && t.access_token);
-      } catch(e){ return false; }
-    }
-
-    // parsing dell'access_token se presente nel fragment (redirect flow)
-    function parseAccessTokenFromHash() {
-      const hash = location.hash && location.hash.substring(1);
-      if(!hash) return null;
-      const params = new URLSearchParams(hash);
-      const token = params.get('access_token');
-      if(token){
-        // rimuovi fragment dall'URL per pulizia (non vogliamo tenerlo visibile)
-        history.replaceState({}, document.title, location.pathname + location.search);
-        return token;
-      }
-      return null;
-    }
-
-    async function maybeHandleTokenFromUrl() {
-      // Se veniamo da redirect OAuth con access_token nel fragment -> inizializziamo gapi e chiamiamo People API.
-      const token = parseAccessTokenFromHash();
-      if(!token) return;
-      // carica gapi client e init
-      try {
-        await new Promise((res, rej) => {
-          if (typeof gapi === 'undefined') return rej(new Error("gapi non presente"));
-          gapi.load("client", { callback: res, onerror: rej });
-        });
-        await gapi.client.init({ discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"] });
-        gapi.client.setToken({ access_token: token });
-        await fetchAndRenderPeople();
-        hideSuggestedNotice();
-      } catch(e){
-        console.error("Errore processing token from url:", e);
-        showSuggestedNotice();
-      }
-    }
-
-    async function fetchAndRenderPeople(){
-      // assume gapi.client é inizializzato e token settato
+    // Fetch & render people (assumes gapi.client initialized and token set)
+    async function fetchAndRenderPeopleWithGapi() {
       try {
         const res = await gapi.client.people.people.connections.list({
           resourceName: "people/me",
@@ -559,126 +509,103 @@
         });
         const connections = res.result.connections || [];
         suggestedBox.innerHTML = "";
-        if(connections.length === 0) {
-          // no-op
+        if(connections.length === 0){
+          suggestedStatus.textContent = "Nessun Consigliato";
         } else {
-          connections.forEach(c => renderSuggested(c));
+          connections.forEach(c => {
+            const displayName = c.names?.[0]?.displayName || "Sconosciuto";
+            const email = c.emailAddresses?.[0]?.value || "";
+            const div = document.createElement("div");
+            div.className = "suggest";
+            div.innerHTML = `
+              <div class="suggest-info">
+                <div class="avatar"><i data-lucide="user"></i></div>
+                <div>
+                  <div class="name">${escapeHtml(displayName)}</div>
+                  <div class="roomtag">${escapeHtml(email)}</div>
+                </div>
+              </div>
+              <div class="actions">
+                <button class="actionbtn acceptBtn" title="Aggiungi"><i data-lucide="check"></i></button>
+                <button class="actionbtn rejectBtn" title="Rimuovi suggerimento"><i data-lucide="x"></i></button>
+              </div>
+            `;
+            div.querySelector(".acceptBtn").addEventListener("click", ()=> {
+              const room = "room_"+Math.random().toString(36).slice(2,10);
+              db.ref("users/"+currentUid+"/contacts").push({ name: displayName || "Contatto", room });
+              div.remove();
+              updateFriendsCount();
+            });
+            div.querySelector(".rejectBtn").addEventListener("click", ()=> div.remove());
+            suggestedBox.appendChild(div);
+          });
+          suggestedStatus.textContent = "Consigliati caricati";
+          lucide.createIcons();
         }
       } catch(e){
-        console.error("People API call failed:", e);
-        throw e;
+        console.error("Errore People API:", e);
+        suggestedStatus.textContent = "Errore People API";
+      } finally {
+        // riabilita pulsante
+        consentiCaricaBtn.disabled = false;
       }
     }
 
-    function renderSuggested(contact){
-      const div = document.createElement("div");
-      div.className = "suggest";
-      const displayName = contact.names?.[0]?.displayName || "Sconosciuto";
-      const email = contact.emailAddresses?.[0]?.value || "";
-      div.innerHTML = `
-        <div class="suggest-info">
-          <div class="avatar"><i data-lucide="user"></i></div>
-          <div>
-            <div class="name">${escapeHtml(displayName)}</div>
-            <div class="roomtag">${escapeHtml(email)}</div>
-          </div>
-        </div>
-        <div class="actions">
-          <button class="actionbtn acceptBtn" title="Aggiungi"><i data-lucide="check"></i></button>
-          <button class="actionbtn rejectBtn" title="Rimuovi suggerimento"><i data-lucide="x"></i></button>
-        </div>
-      `;
-      div.querySelector(".acceptBtn").addEventListener("click", ()=>{
-        const room = "room_"+Math.random().toString(36).slice(2,10);
-        db.ref("users/"+currentUid+"/contacts").push({ name: displayName || "Contatto", room });
-        div.remove();
-        updateFriendsCount();
-      });
-      div.querySelector(".rejectBtn").addEventListener("click", ()=> div.remove());
-      suggestedBox.appendChild(div);
-      lucide.createIcons();
-    }
-
-    function showSuggestedNotice(){ if(suggestedNotice) suggestedNotice.style.display = "flex"; }
-    function hideSuggestedNotice(){ if(suggestedNotice) suggestedNotice.style.display = "none"; }
-
-    // START redirect OAuth: costruisce URL e fa window.location = ...
-    function startRedirectOAuth(){
-      // Nota: l'URI di redirect deve essere registrato nella Google Console per il client ID
-      const redirectUri = location.origin + location.pathname; // esatto: origin + pathname
-      const params = new URLSearchParams({
+    // inizializza tokenClient (GIS)
+    function ensureTokenClient() {
+      if(tokenClient) return;
+      tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
-        redirect_uri: redirectUri,
-        response_type: 'token', // implicit flow -> access_token in fragment
         scope: PEOPLE_SCOPE,
-        include_granted_scopes: 'true',
-        prompt: 'consent'
+        callback: async (resp) => {
+          if(resp.error){
+            console.error("Token error callback:", resp);
+            suggestedStatus.textContent = "Permesso non concesso";
+            consentiCaricaBtn.disabled = false;
+            return;
+          }
+          // set token on gapi
+          try {
+            if (gapi && gapi.client && typeof gapi.client.setToken === 'function') {
+              gapi.client.setToken({ access_token: resp.access_token });
+            }
+          } catch(e){
+            console.warn("gapi.client.setToken non disponibile:", e);
+          }
+          // now fetch and render
+          try {
+            await fetchAndRenderPeopleWithGapi();
+          } catch(e){
+            console.warn("fetch after token failed:", e);
+            consentiCaricaBtn.disabled = false;
+          }
+        }
       });
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-      // Redirect immediato
-      window.location.href = authUrl;
     }
 
-    // Flow GIS (popup), attivato da click utente sul pulsante "Autorizza contatti"
-    authorizeSuggestedBtn.addEventListener("click", async () => {
-      hideSuggestedNotice();
-      try {
-        // carica gapi client se necessario
-        await new Promise((res, rej) => {
-          if (typeof gapi === 'undefined') return rej(new Error("gapi non presente"));
-          gapi.load("client", { callback: res, onerror: rej });
-        });
-        await gapi.client.init({ discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"] });
-      } catch(e){
-        console.warn("gapi non pronto:", e);
-        // Mostriamo fallback ma non blocchiamo: proviamo comunque con GIS init
-      }
+    // Single combined button action: Consenti e Carica
+    consentiCaricaBtn.addEventListener("click", async () => {
+      suggestedStatus.textContent = "Apertura autorizzazione...";
+      consentiCaricaBtn.disabled = true;
 
       try {
-        await waitForGISReady(7000);
+        await ensureGapiClient();
       } catch(e){
-        console.warn("GIS non pronto:", e);
-        alert("Servizio di autorizzazione Google non è pronto. Riprova tra poco.");
-        showSuggestedNotice();
+        console.warn("gapi init fallito:", e);
+        suggestedStatus.textContent = "gapi non disponibile";
+        consentiCaricaBtn.disabled = false;
         return;
       }
 
-      // init tokenClient se non presente
-      if(!tokenClient){
-        tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_CLIENT_ID,
-          scope: PEOPLE_SCOPE,
-          callback: async (resp) => {
-            if(resp.error){
-              console.error("Token error:", resp);
-              showSuggestedNotice();
-              return;
-            }
-            // set token su gapi
-            try {
-              gapi.client.setToken({ access_token: resp.access_token });
-            } catch(e){
-              console.warn("gapi.client.setToken non disponibile:", e);
-            }
-            // chiamiamo People API
-            try {
-              await fetchAndRenderPeople();
-              hideSuggestedNotice();
-            } catch(e){
-              console.error("Errore fetch dopo autorizzazione:", e);
-              showSuggestedNotice();
-            }
-          }
-        });
-      }
-
-      // Ora richiediamo il token: poiché è chiamato in risposta a un click UI, il popup non dovrebbe essere bloccato
       try {
+        ensureTokenClient();
+        // prompt: 'consent' to force the consent screen (user gesture prevents popup blocking)
         tokenClient.requestAccessToken({ prompt: 'consent' });
+        // the callback will handle fetching and re-enabling button
       } catch(err){
-        console.error("requestAccessToken ha fallito:", err);
-        alert("Impossibile aprire la finestra di autorizzazione. Controlla il popup blocker o abilita il redirect flow.");
-        showSuggestedNotice();
+        console.error("requestAccessToken error:", err);
+        suggestedStatus.textContent = "Popup bloccato o errore";
+        consentiCaricaBtn.disabled = false;
       }
     });
 
