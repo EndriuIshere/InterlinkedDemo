@@ -314,8 +314,11 @@
         alert("Richiesta inviata automaticamente!");
         history.replaceState({}, document.title, location.pathname);
       }
-      // NOTA: non apriamo alcun modal automatico per aggiungere tramite UID,
-      // poiché la funzionalità manuale è stata rimossa e si usa il link ?add=UID.
+
+      // CARICAMENTO AUTOMATICO DEI SUGGERITI ALL'APERTURA DELLA PAGINA
+      // (tentiamo il caricamento; se l'utente non concede permessi o qualcosa fallisce,
+      // la funzione gestirà l'errore internamente)
+      loadSuggestedContacts();
     });
 
     // ---------- CONTATTI ----------
@@ -433,8 +436,22 @@
     }
 
     // ---------- SUGGERITI (People API) ----------
-    // Ho mantenuto il codice di caricamento suggeriti come funzione riutilizzabile
-    // ma il pulsante manuale è stato rimosso dall'interfaccia per rispettare la tua richiesta.
+    // Funzione per attendere che google.accounts.oauth2 sia disponibile
+    function waitForGISReady(timeoutMs = 5000) {
+      return new Promise((resolve, reject) => {
+        const start = Date.now();
+        (function poll() {
+          if (window.google && google.accounts && google.accounts.oauth2 && typeof google.accounts.oauth2.initTokenClient === 'function') {
+            return resolve();
+          }
+          if (Date.now() - start > timeoutMs) {
+            return reject(new Error("Google Identity Services (GIS) non disponibile entro timeout"));
+          }
+          setTimeout(poll, 100);
+        })();
+      });
+    }
+
     let tokenClient = null;
 
     function renderSuggested(contact){
@@ -467,10 +484,15 @@
     }
 
     async function loadSuggestedContacts(){
-      // funzione disponibile, ma non legata a un bottone nell'UI
+      // Carica suggeriti automaticamente all'apertura.
+      // Attenzione: questa funzione richiede che l'utente conceda permessi tramite la finestra
+      // di consenso Google. Se l'utente chiude il popup o rifiuta, non appariranno suggeriti.
       try {
         // 1) Load gapi client
         await new Promise((res, rej) => {
+          if (typeof gapi === 'undefined') {
+            return rej(new Error("gapi non presente"));
+          }
           gapi.load("client", { callback: res, onerror: rej });
         });
 
@@ -478,7 +500,16 @@
           discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"]
         });
 
-        // 2) Init GIS token client (solo una volta)
+        // 2) Wait for GIS (google.accounts.oauth2) to be available
+        try {
+          await waitForGISReady(7000);
+        } catch(waitErr){
+          console.warn("GIS non pronto:", waitErr);
+          // Non blocchiamo l'app: usciamo silenziosamente
+          return;
+        }
+
+        // 3) Init GIS token client (solo una volta)
         if(!tokenClient){
           tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
@@ -492,7 +523,7 @@
               gapi.client.setToken({ access_token: resp.access_token });
 
               try {
-                // 3) Chiamata People API
+                // 4) Chiamata People API
                 const res = await gapi.client.people.people.connections.list({
                   resourceName: "people/me",
                   pageSize: 8,
@@ -501,7 +532,7 @@
                 const connections = res.result.connections || [];
                 suggestedBox.innerHTML = "";
                 if(connections.length === 0){
-                  // niente da mostrare
+                  // Nessun contatto trovato: lasciamo box vuoto
                 } else {
                   connections.forEach(c => renderSuggested(c));
                 }
@@ -512,7 +543,8 @@
           });
         }
 
-        // 4) Richiesta token OAuth (apre popup di consenso se necessario)
+        // 5) Richiesta token OAuth (apre popup di consenso se necessario)
+        // prompt:'' chiede il token senza forzare re-consent quando possibile
         tokenClient.requestAccessToken({ prompt: '' });
 
       } catch(err){
