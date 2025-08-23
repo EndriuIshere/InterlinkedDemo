@@ -368,11 +368,12 @@
       const addUid = params.get("add");
       if(addUid && addUid !== currentUid){
         const room = roomFor(currentUid, addUid);
-        // aggiunge contatto locale (solo lato mittente)
+        // aggiunge contatto locale (solo lato mittente) se non presente
         await ensureLocalContactOnce(currentUid, { name: "Nuovo Contatto", room });
         // invia richiesta all'altro (controlla duplicati)
-        await sendFriendRequestIfNeeded(addUid);
-        alert("Richiesta inviata automaticamente (se non duplicata)!");
+        const res = await sendFriendRequestIfNeeded(addUid);
+        if(res.ok) alert("Richiesta inviata automaticamente!");
+        else alert("Richiesta non inviata: " + (res.reason || "unknown"));
         history.replaceState({}, document.title, location.pathname);
       }
 
@@ -632,6 +633,8 @@
 
     // ---------- SUGGERITI (People API) ----------
     let tokenClient = null;
+    // fallback token holder se gapi.client.setToken non disponibile
+    let __LAST_ACCESS_TOKEN = null;
 
     // Inizializza gapi client
     async function ensureGapiClient() {
@@ -676,9 +679,12 @@
     }
 
     function deriveSecondary(person){
-      // Mostra preferibilmente un'email
-      const email = firstNonEmpty(person.emailAddresses, e => e.value);
-      if(email) return email;
+      // Prova a mostrare la prima email, altrimenti tutte le email con virgola
+      try {
+        const emails = (person.emailAddresses || []).map(e => e.value).filter(Boolean);
+        if(emails.length === 1) return emails[0];
+        if(emails.length > 1) return emails.join(", ");
+      } catch(e){ /* ignore */ }
       return "Nessun email";
     }
 
@@ -707,6 +713,155 @@
       return null;
     }
 
+    // Fetch & render con People API (richiede gapi.client *e* token impostato)
+    async function fetchAndRenderPeopleWithGapi() {
+      // Se abbiamo access token nella variabile fallback, useremo una request manuale con header Authorization
+      const useManualAuth = !!__LAST_ACCESS_TOKEN;
+
+      suggestedStatus.textContent = "Caricamento suggeriti...";
+      suggestedBox.innerHTML = "";
+
+      try {
+        let res;
+        if(useManualAuth){
+          // chiamata manuale via gapi.client.request con header (più robusta se setToken non disponibile)
+          res = await gapi.client.request({
+            path: "https://people.googleapis.com/v1/people/me/connections",
+            method: "GET",
+            params: {
+              pageSize: 1000,
+              personFields: "names,emailAddresses,phoneNumbers,photos"
+            },
+            headers: {
+              Authorization: "Bearer " + __LAST_ACCESS_TOKEN
+            }
+          });
+        } else {
+          // usare client wrapper (se setToken utilizzato precedentemente questo funzionerà)
+          res = await gapi.client.people.people.connections.list({
+            resourceName: "people/me",
+            pageSize: 1000,
+            personFields: "names,emailAddresses,phoneNumbers,photos"
+          });
+        }
+
+        const connections = (res && res.result && res.result.connections) || (res && res.connections) || [];
+        console.log("People API - primi 5 connections (debug):", connections.slice(0,5));
+        // stampo anche l'intero oggetto per ispezione (attenzione: può essere grande)
+        // console.debug("People API full response:", res);
+
+        if(!Array.isArray(connections) || connections.length === 0){
+          suggestedStatus.textContent = "Nessun Consigliato (risposta vuota)";
+          lucide.createIcons();
+          return;
+        }
+
+        // Filtra solo contatti con almeno nome/email (non usi telefoni)
+        const useful = connections.filter(c => {
+          const hasName  = c.names && c.names.some(n => n.displayName);
+          const hasEmail = c.emailAddresses && c.emailAddresses.some(e => e.value);
+          return hasName || hasEmail;
+        });
+
+        if(useful.length === 0){
+          suggestedStatus.textContent = "Nessun Consigliato (nessuna email trovata)";
+          lucide.createIcons();
+          return;
+        }
+
+        useful.forEach(renderSuggested);
+        suggestedStatus.textContent = `Consigliati caricati (${useful.length})`;
+        lucide.createIcons();
+      } catch(e){
+        console.error("Errore fetchAndRenderPeopleWithGapi:", e);
+        // Se c'è un problema di autorizzazione, prova a segnalare esplicitamente
+        if(e && e.result && e.result.error && e.result.error.code === 403){
+          suggestedStatus.textContent = "Accesso negato alle Rubriche (scope non concesso)";
+        } else {
+          suggestedStatus.textContent = "Errore People API, controlla console";
+        }
+      }
+    }
+
+    // Inizializza tokenClient (GIS)
+    function ensureTokenClient() {
+      if(tokenClient) return;
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: PEOPLE_SCOPE,
+        callback: async (resp) => {
+          if(resp.error){
+            console.error("Token error callback:", resp);
+            suggestedStatus.textContent = "Permesso non concesso";
+            consentiCaricaBtn.disabled = false;
+            return;
+          }
+          // Se abbiamo access_token, proviamo a impostarlo in gapi client; se non è possibile usiamo fallback.
+          try {
+            if (resp.access_token) {
+              __LAST_ACCESS_TOKEN = resp.access_token;
+            }
+
+            // Preferiamo usare gapi.client.setToken se presente (più pulito)
+            if (gapi && gapi.client && typeof gapi.client.setToken === 'function' && resp.access_token){
+              try {
+                gapi.client.setToken({ access_token: resp.access_token });
+                // Pulizia fallback token perché ora gapi gestisce internamente
+                __LAST_ACCESS_TOKEN = null;
+              } catch(inner){
+                console.warn("gapi.client.setToken ha fallito, useremo fallback token:", inner);
+                // rimane __LAST_ACCESS_TOKEN valorizzato
+              }
+            } else {
+              // gapi.client.setToken non disponibile, useremo fallback header Authorization
+              console.warn("gapi.client.setToken non disponibile; useremo Authorization header fallback.");
+            }
+          } catch(e){
+            console.warn("Errore impostando token:", e);
+          }
+
+          // Prova a chiamare l'API e renderizzare
+          try {
+            await fetchAndRenderPeopleWithGapi();
+          } catch(e){
+            console.error("Errore People API:", e);
+            suggestedStatus.textContent = "Errore People API";
+          } finally {
+            // Nascondi comunque il pop-up dopo il tentativo (richiesto)
+            if(consentBox) consentBox.style.display = "none";
+            consentiCaricaBtn.disabled = false;
+          }
+        }
+      });
+    }
+
+    // Azione unico bottone: Consenti e Carica
+    consentiCaricaBtn.addEventListener("click", async () => {
+      suggestedStatus.textContent = "Apertura autorizzazione...";
+      consentiCaricaBtn.disabled = true;
+
+      try {
+        await ensureGapiClient();
+      } catch(e){
+        console.warn("gapi init fallito:", e);
+        suggestedStatus.textContent = "gapi non disponibile";
+        consentiCaricaBtn.disabled = false;
+        return;
+      }
+
+      try {
+        ensureTokenClient();
+        // User gesture → meno probabile che il popup venga bloccato
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+        // La callback gestisce fetch, stato e chiusura pop-up
+      } catch(err){
+        console.error("requestAccessToken error:", err);
+        suggestedStatus.textContent = "Popup bloccato o errore";
+        consentiCaricaBtn.disabled = false;
+      }
+    });
+
+    // ---------- Render suggeriti / gestione accept già gestita altrove ----------
     function renderSuggested(person){
       const displayName = deriveDisplayName(person);
       const secondary = deriveSecondary(person);
@@ -763,7 +918,6 @@
               suggestedStatus.textContent = "Richiesta inviata";
               div.remove();
             } else {
-              // motivi possibili: already_friends / already_requested / error
               if(res.reason === "already_friends") suggestedStatus.textContent = "Siete già amici";
               else if(res.reason === "already_requested") suggestedStatus.textContent = "Richiesta già inviata";
               else suggestedStatus.textContent = "Errore invio richiesta";
@@ -802,97 +956,6 @@
       suggestedBox.appendChild(div);
     }
 
-    // Fetch & render con People API (richiede gapi.client *e* token impostato)
-    async function fetchAndRenderPeopleWithGapi() {
-      const res = await gapi.client.people.people.connections.list({
-        resourceName: "people/me",
-        pageSize: 1000, // un po' di più, così c'è più probabilità di avere numeri/nome
-        personFields: "names,emailAddresses,phoneNumbers,photos"
-      });
-      const connections = res.result.connections || [];
-      suggestedBox.innerHTML = "";
-
-      // Filtra solo contatti con almeno nome/email (non usi telefoni)
-      const useful = connections.filter(c => {
-        const hasName  = c.names && c.names.some(n => n.displayName);
-        const hasEmail = c.emailAddresses && c.emailAddresses.some(e => e.value);
-        return hasName || hasEmail;
-      });
-
-      if(useful.length === 0){
-        suggestedStatus.textContent = "Nessun Consigliato";
-        lucide.createIcons();
-        return;
-      }
-
-      useful.forEach(renderSuggested);
-      suggestedStatus.textContent = `Consigliati caricati (${useful.length})`;
-      lucide.createIcons();
-    }
-
-    // Inizializza tokenClient (GIS)
-    function ensureTokenClient() {
-      if(tokenClient) return;
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: PEOPLE_SCOPE,
-        callback: async (resp) => {
-          if(resp.error){
-            console.error("Token error callback:", resp);
-            suggestedStatus.textContent = "Permesso non concesso";
-            consentiCaricaBtn.disabled = false;
-            return;
-          }
-          // Set token in gapi client se presente
-          try {
-            if (gapi && gapi.client && typeof gapi.client.setToken === 'function') {
-              gapi.client.setToken({ access_token: resp.access_token });
-            }
-          } catch(e){
-            console.warn("gapi.client.setToken non disponibile:", e);
-          }
-
-          // Prova a chiamare l'API e renderizzare
-          try {
-            await fetchAndRenderPeopleWithGapi();
-          } catch(e){
-            console.error("Errore People API:", e);
-            suggestedStatus.textContent = "Errore People API";
-          } finally {
-            // Nascondi comunque il pop-up dopo il tentativo (richiesto)
-            if(consentBox) consentBox.style.display = "none";
-            consentiCaricaBtn.disabled = false;
-          }
-        }
-      });
-    }
-
-    // Azione unico bottone: Consenti e Carica
-    consentiCaricaBtn.addEventListener("click", async () => {
-      suggestedStatus.textContent = "Apertura autorizzazione...";
-      consentiCaricaBtn.disabled = true;
-
-      try {
-        await ensureGapiClient();
-      } catch(e){
-        console.warn("gapi init fallito:", e);
-        suggestedStatus.textContent = "gapi non disponibile";
-        consentiCaricaBtn.disabled = false;
-        return;
-      }
-
-      try {
-        ensureTokenClient();
-        // User gesture → meno probabile che il popup venga bloccato
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-        // La callback gestisce fetch, stato e chiusura pop-up
-      } catch(err){
-        console.error("requestAccessToken error:", err);
-        suggestedStatus.textContent = "Popup bloccato o errore";
-        consentiCaricaBtn.disabled = false;
-      }
-    });
-
     // ---------- icone e cleanup ----------
     lucide.createIcons();
     window.addEventListener("beforeunload", ()=>{
@@ -901,16 +964,27 @@
     });
 
     /*
-      NOTE TECNICHE :
-      - Matching degli utenti avviene solo tramite email (come richiesto).
-      - Per evitare richieste duplicate e accettazioni multiple ho:
-          * generato una "room" deterministica per coppia di UID (room_<min>_<max>),
-          * controlli su requests e contacts prima di inserire.
-      - La funzione findUserUidByPerson scansiona l'intero nodo "users". Se il DB cresce molto,
-        suggerisco di creare un indice /byEmail/<email> => uid quando l'utente si registra.
-      - Se vuoi che tracciamo anche le richieste inviate (per mostrare "In attesa"), posso aggiungere
-        la struttura /sentRequests/<currentUid>/<otherUid> oppure un campo locale sotto
-        users/<currentUid>/sentRequests.
+      NOTE TECNICHE E SUGGERIMENTI DI DEBUG:
+
+      - I messaggi in console:
+        "Cross-Origin-Opener-Policy policy would block the window.opener call."
+        provengono dallo script Google (popup). SONO INFORMAZIONI NON BLOCCANTI.
+        Per rimuoverli servirebbe impostare header COOP/COEP sul server che serve la pagina;
+        non è una correzione fatta via frontend.
+
+      - Se dopo aver premuto "Consenti e Carica" in console vedi il dump dei "connections"
+        e noti che gli oggetti NON contengono `emailAddresses`, significa che nei contatti Google
+        dell'account non ci sono email per quei contatti. Controlla il contenuto reale: ho
+        aggiunto `console.log` dei primi 5 elementi per aiutarti a ispezionare.
+
+      - Se invece la risposta contiene email e l'app ancora non le mostra, guarda nei log:
+        usiamo sia il metodo standard `gapi.client.setToken` (quando disponibile) sia
+        il fallback che passa `Authorization: Bearer <token>`; in questo modo risolviamo eventuali
+        problemi legati a versioni del client gapi.
+
+      - Se vuoi che indaghi più nel dettaglio, copia qui nel chat una delle voci che appare in console
+        dal `console.log("People API - primi 5 connections (debug):", ...)` e ti dico esattamente come
+        estrarre l'email che vedi lì.
     */
   </script>
 </body>
