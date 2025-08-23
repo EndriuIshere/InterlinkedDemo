@@ -303,7 +303,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
-  <!-- GAPI (for discovery & People API) and GIS (token acquisition) -->
+  <!-- GAPI + GIS -->
   <script src="https://apis.google.com/js/api.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
@@ -565,14 +565,13 @@
     }
 
     async function loadSuggestedContacts(){
-      // Basic checks
-      if(!GOOGLE_API_KEY || GOOGLE_API_KEY.includes("REPLACE")) {
-        alert("Inserisci la GOOGLE_API_KEY nel file (Browser Key).");
+      if(!GOOGLE_API_KEY){
+        alert("Configura la GOOGLE_API_KEY");
         return;
       }
       suggestedStatus.textContent = "Caricamento…";
       try {
-        // 1) Load gapi.client (discovery) with only apiKey
+        // 1) Load gapi client
         await new Promise((res, rej) => {
           if(typeof gapi === "undefined") return rej(new Error("gapi non caricato"));
           gapi.load("client", { callback: res, onerror: rej });
@@ -583,29 +582,26 @@
           discoveryDocs: ["https://people.googleapis.com/$discovery/rest?version=v1"]
         });
 
-        // 2) Configure GIS token client (popup)
+        // 2) Init GIS token client
         if(!tokenClient){
           tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
             scope: 'https://www.googleapis.com/auth/contacts.readonly',
-            prompt: '', // empty = don't force consent if already granted
             callback: async (resp) => {
               if(resp.error){
-                console.error("Token client error:", resp);
+                console.error("Token error:", resp);
                 suggestedStatus.textContent = "Permesso non concesso";
-                alert("Accesso ai contatti non concesso o errore: " + (resp.error || JSON.stringify(resp)));
                 return;
               }
-              const accessToken = resp.access_token;
-              gapi.client.setToken({ access_token: accessToken });
+              gapi.client.setToken({ access_token: resp.access_token });
 
               try {
-                const peopleRes = await gapi.client.people.people.connections.list({
+                const res = await gapi.client.people.people.connections.list({
                   resourceName: "people/me",
                   pageSize: 8,
                   personFields: "names,emailAddresses,photos"
                 });
-                const connections = peopleRes.result.connections || [];
+                const connections = res.result.connections || [];
                 suggestedBox.innerHTML = "";
                 if(connections.length === 0){
                   suggestedStatus.textContent = "Nessun contatto trovato";
@@ -614,34 +610,25 @@
                   suggestedStatus.textContent = "Consigliati caricati";
                 }
               } catch(apiErr){
-                console.error("People API error after token:", apiErr);
-                suggestedStatus.textContent = "Errore caricamento consigliati";
-                alert("Errore People API: vedi console");
+                console.error("People API error:", apiErr);
+                suggestedStatus.textContent = "Errore People API";
               }
             }
           });
         }
 
-        // 3) Request an access token — triggers a popup to ask for consent
+        // 3) Request token (popup consent)
         tokenClient.requestAccessToken();
 
-      } catch(err) {
+      } catch(err){
         console.error("Errore loadSuggestedContacts:", err);
         suggestedStatus.textContent = "Consigliati non disponibili";
-        // Show user-friendly message if we can extract details
-        if(err && err.result && err.result.error && err.result.error.message) {
-          alert("Google API error: " + err.result.error.message);
-        } else if(err && err.message) {
-          alert("Errore: " + err.message);
-        } else {
-          alert("Errore caricamento consigliati. Controlla console e impostazioni Cloud Console.");
-        }
       }
     }
 
     loadSuggestedBtn.addEventListener("click", loadSuggestedContacts);
 
-    // ---------- inizializza icone e pulizia ----------
+    // ---------- icone ----------
     lucide.createIcons();
     window.addEventListener("beforeunload", ()=>{
       if(contactsRef) contactsRef.off();
