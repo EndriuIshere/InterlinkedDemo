@@ -352,8 +352,13 @@
       if(!user){ location.replace("login.html"); return; }
       currentUid = user.uid;
       // carica nome utente corrente
-      const snap = await db.ref("users/"+currentUid+"/profile/name").once("value");
-      currentName = snap.exists() ? snap.val() : "Utente";
+      try {
+        const snap = await db.ref("users/"+currentUid+"/profile/name").once("value");
+        currentName = snap.exists() ? snap.val() : "Utente";
+      } catch(e){
+        console.warn("Errore caricando nome:", e);
+        currentName = "Utente";
+      }
 
       initContacts();
       initRequests();
@@ -362,10 +367,12 @@
       const params = new URLSearchParams(location.search);
       const addUid = params.get("add");
       if(addUid && addUid !== currentUid){
-        const room = "room_"+Math.random().toString(36).slice(2,10);
-        db.ref("users/"+currentUid+"/contacts").push({name:"Nuovo Contatto",room});
-        db.ref("users/"+addUid+"/requests").push({from:currentUid,fromName:currentName,room});
-        alert("Richiesta inviata automaticamente!");
+        const room = roomFor(currentUid, addUid);
+        // aggiunge contatto locale (solo lato mittente)
+        await ensureLocalContactOnce(currentUid, { name: "Nuovo Contatto", room });
+        // invia richiesta all'altro (controlla duplicati)
+        await sendFriendRequestIfNeeded(addUid);
+        alert("Richiesta inviata automaticamente (se non duplicata)!");
         history.replaceState({}, document.title, location.pathname);
       }
 
@@ -459,13 +466,62 @@
       d.innerHTML = `<span>${escapeHtml(r.fromName || "Utente")}</span>`;
       const acc = document.createElement("button"); acc.className="btn"; acc.innerHTML = '<i data-lucide="check"></i> Accetta';
       const rej = document.createElement("button"); rej.className="btn"; rej.innerHTML = '<i data-lucide="x"></i> Rifiuta';
+
+      // Accept handler (idempotent)
       acc.addEventListener("click", async ()=>{
-        const newRoom = r.room || ("room_"+Math.random().toString(36).slice(2,10));
-        await db.ref("users/"+currentUid+"/contacts").push({ name: r.fromName || "Contatto", room: newRoom });
-        await db.ref("users/"+r.from+"/contacts").push({ name: currentName, room: newRoom });
-        await db.ref("users/"+currentUid+"/requests/"+id).remove();
+        acc.disabled = true;
+        acc.style.opacity = "0.6";
+        suggestedStatus.textContent = "Accettando...";
+
+        try {
+          const fromUid = r.from;
+          const newRoom = r.room || roomFor(currentUid, fromUid || '');
+          // verifiche: se già esiste il contatto con questa stanza, non duplicare
+          const alreadyHere = await userHasContactWithRoom(currentUid, newRoom);
+          const alreadyThere = fromUid ? await userHasContactWithRoom(fromUid, newRoom) : false;
+
+          if(alreadyHere && alreadyThere){
+            // rimuovi la richiesta (se ancora presente) — era già accettata in precedenza
+            await db.ref("users/"+currentUid+"/requests/"+id).remove();
+            suggestedStatus.textContent = "Già amici (rimozione richiesta)";
+            d.remove();
+            return;
+          }
+
+          // se non esistono, aggiungi contatti ad entrambi i lati (se fromUid presente)
+          if(!alreadyHere){
+            await db.ref("users/"+currentUid+"/contacts").push({ name: r.fromName || "Contatto", room: newRoom });
+          }
+          if(fromUid && !alreadyThere){
+            await db.ref("users/"+fromUid+"/contacts").push({ name: currentName || "Contatto", room: newRoom });
+          }
+
+          // rimuovi la richiesta (sempre)
+          await db.ref("users/"+currentUid+"/requests/"+id).remove();
+          suggestedStatus.textContent = "Accettata";
+          d.remove();
+        } catch(e){
+          console.error("Errore accettando richiesta:", e);
+          suggestedStatus.textContent = "Errore durante l'accettazione";
+          acc.disabled = false;
+          acc.style.opacity = "1";
+        } finally {
+          lucide.createIcons();
+        }
       });
-      rej.addEventListener("click", ()=> db.ref("users/"+currentUid+"/requests/"+id).remove());
+
+      // Reject handler
+      rej.addEventListener("click", async ()=>{
+        try {
+          await db.ref("users/"+currentUid+"/requests/"+id).remove();
+          suggestedStatus.textContent = "Rifiutata";
+          d.remove();
+        } catch(e){
+          console.error("Errore rifiutando richiesta:", e);
+          suggestedStatus.textContent = "Errore rifiuto";
+        }
+      });
+
       d.append(acc, rej);
       return d;
     }
@@ -485,6 +541,93 @@
         if(el) el.remove();
         if(!reqBox.children.length) reqBox.style.display = "none";
       });
+    }
+
+    // ---------- UTILS: ROOM DETERMINISTICA E CHECKS ----------
+    // genera una room deterministica per due uid (ordina per stabilità)
+    function roomFor(a, b){
+      if(!a || !b) return "room_"+Math.random().toString(36).slice(2,10);
+      return "room_" + [a, b].sort().join("_");
+    }
+
+    // controlla se un utente ha già un contatto con la stessa room
+    async function userHasContactWithRoom(uid, room){
+      if(!uid || !room) return false;
+      try {
+        const snap = await db.ref("users/"+uid+"/contacts").once("value");
+        const c = snap.val() || {};
+        for(const k in c){
+          if(c[k] && c[k].room === room) return true;
+        }
+      } catch(e){
+        console.warn("Errore controllando contatti per", uid, e);
+      }
+      return false;
+    }
+
+    // assicura che venga creato un contatto locale una sola volta (utile per fallback locali)
+    async function ensureLocalContactOnce(uid, contactObj){
+      try {
+        const snap = await db.ref("users/"+uid+"/contacts").once("value");
+        const c = snap.val() || {};
+        // se esiste già una contact con stessa room non inserire
+        for(const k in c){
+          if(c[k] && c[k].room === contactObj.room) return;
+        }
+        await db.ref("users/"+uid+"/contacts").push(contactObj);
+      } catch(e){
+        console.warn("Errore ensureLocalContactOnce:", e);
+      }
+    }
+
+    // verifica se su otherUid esiste già una richiesta proveniente da fromUid
+    async function otherHasPendingRequestFrom(otherUid, fromUid){
+      if(!otherUid || !fromUid) return false;
+      try {
+        const snap = await db.ref("users/"+otherUid+"/requests").once("value");
+        const r = snap.val() || {};
+        let found = false;
+        for(const k in r){
+          if(r[k] && r[k].from === fromUid) { found = true; break; }
+        }
+        return found;
+      } catch(e){
+        console.warn("Errore checking pending requests:", e);
+        return false;
+      }
+    }
+
+    // tenta di inviare richiesta all'altro utente solo se necessario (no duplicati)
+    async function sendFriendRequestIfNeeded(otherUid){
+      if(!otherUid || !currentUid) return { ok:false, reason: "invalid" };
+      if(otherUid === currentUid) return { ok:false, reason: "self" };
+      const room = roomFor(currentUid, otherUid);
+
+      // 1) se sono già amici (stessa room in otherUid contacts) -> non inviare
+      const otherHasContact = await userHasContactWithRoom(otherUid, room);
+      if(otherHasContact){
+        return { ok:false, reason: "already_friends" };
+      }
+
+      // 2) se l'altro ha già una request da me -> non inviare
+      const alreadyRequested = await otherHasPendingRequestFrom(otherUid, currentUid);
+      if(alreadyRequested){
+        return { ok:false, reason: "already_requested" };
+      }
+
+      // 3) invia la richiesta
+      try {
+        await db.ref("users/"+otherUid+"/requests").push({
+          from: currentUid,
+          fromName: currentName,
+          room,
+          ts: Date.now()
+        });
+        return { ok:true };
+      } catch(e){
+        console.error("Errore inviando richiesta:", e);
+        return { ok:false, reason: "error" };
+      }
     }
 
     // ---------- SUGGERITI (People API) ----------
@@ -528,20 +671,40 @@
         const local = email.split("@")[0];
         return local || email;
       }
-      // 3) Numero di telefono
-      const phone = firstNonEmpty(person.phoneNumbers, p => p.value);
-      if(phone) return phone;
-      // 4) Fallback
+      // 3) Fallback
       return "Contatto";
     }
 
     function deriveSecondary(person){
-      // Mostra preferibilmente un numero, altrimenti l'email
-      const phone = firstNonEmpty(person.phoneNumbers, p => p.value);
-      if(phone) return phone;
+      // Mostra preferibilmente un'email
       const email = firstNonEmpty(person.emailAddresses, e => e.value);
       if(email) return email;
-      return "Nessun numero"; // richiesta: se non ci sono numeri, scrivere "Nessun Consigliato" come stato globale; qui per singolo item mostriamo "Nessun numero"
+      return "Nessun email";
+    }
+
+    /**
+     * Cerca nel DB un utente registrato che abbia email tra quelli del person.
+     * Restituisce UID o null.
+     * (Hai detto che non usi numeri di telefono — qui usiamo SOLO email)
+     */
+    async function findUserUidByPerson(person){
+      const emails = (person.emailAddresses || []).map(e => (e.value||'').toLowerCase().trim()).filter(Boolean);
+      if(!emails.length) return null;
+
+      // Leggiamo l'intero nodo users e facciamo matching per campo profile.email
+      // Nota: per DB grandi è consigliato creare /byEmail/<email> => uid
+      try {
+        const snap = await db.ref("users").once("value");
+        const users = snap.val() || {};
+        for(const uid in users){
+          const profile = users[uid].profile || {};
+          const pEmail = (profile.email || "").toLowerCase().trim();
+          if(pEmail && emails.includes(pEmail)) return uid;
+        }
+      } catch(e){
+        console.warn("Errore findUserUidByPerson:", e);
+      }
+      return null;
     }
 
     function renderSuggested(person){
@@ -564,13 +727,77 @@
         </div>
       `;
 
-      div.querySelector(".acceptBtn").addEventListener("click", ()=>{
-        const room = "room_"+Math.random().toString(36).slice(2,10);
-        db.ref("users/"+currentUid+"/contacts").push({ name: displayName || "Contatto", room });
-        div.remove();
-        updateFriendsCount();
+      const acceptBtn = div.querySelector(".acceptBtn");
+      const rejectBtn = div.querySelector(".rejectBtn");
+
+      // Handler per Accetta: cerca UID dell'utente registrato (se presente) -> invia richiesta.
+      acceptBtn.addEventListener("click", async ()=>{
+        acceptBtn.disabled = true;
+        acceptBtn.style.opacity = "0.6";
+        suggestedStatus.textContent = "Elaborazione richiesta...";
+
+        try {
+          const otherUid = await findUserUidByPerson(person);
+
+          if(otherUid && otherUid !== currentUid){
+            // usa room deterministica
+            const room = roomFor(currentUid, otherUid);
+
+            // controlli per evitare duplicati (amici già presenti, o richiesta già inviata)
+            const otherHasContact = await userHasContactWithRoom(otherUid, room);
+            if(otherHasContact){
+              suggestedStatus.textContent = "L'utente è già nei tuoi amici";
+              div.remove();
+              return;
+            }
+            const alreadyRequested = await otherHasPendingRequestFrom(otherUid, currentUid);
+            if(alreadyRequested){
+              suggestedStatus.textContent = "Hai già inviato una richiesta a questo utente";
+              div.remove();
+              return;
+            }
+
+            // invia richiesta in modo sicuro
+            const res = await sendFriendRequestIfNeeded(otherUid);
+            if(res.ok){
+              suggestedStatus.textContent = "Richiesta inviata";
+              div.remove();
+            } else {
+              // motivi possibili: already_friends / already_requested / error
+              if(res.reason === "already_friends") suggestedStatus.textContent = "Siete già amici";
+              else if(res.reason === "already_requested") suggestedStatus.textContent = "Richiesta già inviata";
+              else suggestedStatus.textContent = "Errore invio richiesta";
+            }
+          } else if(otherUid && otherUid === currentUid){
+            // è il tuo stesso account (es. contatto con la tua email) -> aggiungi localmente
+            const room = roomFor(currentUid, otherUid);
+            await ensureLocalContactOnce(currentUid, { name: displayName || "Contatto", room });
+            suggestedStatus.textContent = "Aggiunto (sei già registrato)";
+            div.remove();
+            updateFriendsCount();
+          } else {
+            // l'utente non è registrato: fallback -> aggiungi solo alla tua rubrica locale
+            const room = "room_"+Math.random().toString(36).slice(2,10);
+            await ensureLocalContactOnce(currentUid, { name: displayName || "Contatto", room });
+            suggestedStatus.textContent = "Contatto aggiunto (utente non iscritto)";
+            div.remove();
+            updateFriendsCount();
+          }
+        } catch(e){
+          console.error("Errore accettando suggerito:", e);
+          suggestedStatus.textContent = "Errore invio richiesta";
+        } finally {
+          acceptBtn.disabled = false;
+          acceptBtn.style.opacity = "1";
+          lucide.createIcons();
+        }
       });
-      div.querySelector(".rejectBtn").addEventListener("click", ()=> div.remove());
+
+      // Rimuovi suggerimento (solo UI)
+      rejectBtn.addEventListener("click", ()=> {
+        div.remove();
+        suggestedStatus.textContent = "Suggerimento rimosso";
+      });
 
       suggestedBox.appendChild(div);
     }
@@ -585,12 +812,11 @@
       const connections = res.result.connections || [];
       suggestedBox.innerHTML = "";
 
-      // Filtra solo contatti con almeno nome/email/numero (altrimenti sono poco utili)
+      // Filtra solo contatti con almeno nome/email (non usi telefoni)
       const useful = connections.filter(c => {
         const hasName  = c.names && c.names.some(n => n.displayName);
         const hasEmail = c.emailAddresses && c.emailAddresses.some(e => e.value);
-        const hasPhone = c.phoneNumbers && c.phoneNumbers.some(p => p.value);
-        return hasName || hasEmail || hasPhone;
+        return hasName || hasEmail;
       });
 
       if(useful.length === 0){
@@ -675,13 +901,16 @@
     });
 
     /*
-      NOTE TECNICHE:
-      - I log in console "Cross-Origin-Opener-Policy policy would block the window.opener call."
-        provengono dallo script Google; non bloccano il flusso. Per rimuoverli servirebbero header COOP/COEP
-        o un flow OAuth diverso (redirect anziché popup).
-      - Se vedi ancora molti "Sconosciuto", significa che i contatti non hanno nome né email/numero.
-        In quel caso mostriamo "Contatto" come fallback nell’item e "Nessun Consigliato" come stato globale
-        se non c'è nessun contatto utile.
+      NOTE TECNICHE :
+      - Matching degli utenti avviene solo tramite email (come richiesto).
+      - Per evitare richieste duplicate e accettazioni multiple ho:
+          * generato una "room" deterministica per coppia di UID (room_<min>_<max>),
+          * controlli su requests e contacts prima di inserire.
+      - La funzione findUserUidByPerson scansiona l'intero nodo "users". Se il DB cresce molto,
+        suggerisco di creare un indice /byEmail/<email> => uid quando l'utente si registra.
+      - Se vuoi che tracciamo anche le richieste inviate (per mostrare "In attesa"), posso aggiungere
+        la struttura /sentRequests/<currentUid>/<otherUid> oppure un campo locale sotto
+        users/<currentUid>/sentRequests.
     */
   </script>
 </body>
