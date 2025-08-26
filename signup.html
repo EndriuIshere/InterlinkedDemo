@@ -5,45 +5,311 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Interlinked — Registrati</title>
   <style>
-    :root { --gap:12px; }
+    :root {
+      --gap: 12px;
+      --bg-dark: #0b0f19;
+      --bg-card: #141a2a;
+      --bg-hover: #1b2235;
+      --border: #2c344a;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #e5e7eb;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
     * { box-sizing: border-box; margin:0; padding:0; }
-    body {
-      min-height:100vh; background:#0f172a; color:#e5e7eb;
-      display:grid; place-items:center;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      padding:16px;
+         body {
+       min-height:100vh; 
+       background: var(--bg-dark); 
+       color: var(--text);
+       display:flex; 
+       justify-content:center;
+       align-items:flex-start;
+       font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+       -webkit-font-smoothing: antialiased;
+       -moz-osx-font-smoothing: grayscale;
+       padding:16px;
+       overflow-y: auto;
+     }
+         .card {
+       width:100%; 
+       max-width:420px;
+       background: var(--bg-card); 
+       border:1px solid var(--border); 
+       border-radius:16px;
+       padding:40px 32px 32px 32px; 
+       box-shadow:0 20px 40px rgba(0,0,0,.4);
+       display:flex; 
+       flex-direction:column; 
+       gap:20px;
+       animation: slideUp 0.6s ease-out;
+       margin-top: 20px;
+     }
+    
+    /* Mobile optimizations */
+         @media (max-height: 700px) {
+       body {
+         padding: 8px;
+       }
+       .card {
+         padding: 28px 20px 20px 20px;
+         gap: 16px;
+       }
+      .title {
+        font-size: 1.6rem;
+        margin-bottom: 4px;
+      }
+      .field {
+        gap: 6px;
+      }
+      input {
+        height: 44px;
+        padding: 12px 14px;
+      }
+      .btn {
+        padding: 12px;
+      }
+      .links-section {
+        gap: 6px;
+        margin-top: 4px;
+      }
+      .legal-links {
+        font-size: 0.75rem;
+        gap: 12px;
+      }
     }
-    .card {
-      width:100%; max-width:420px;
-      background:#0b1220; border:1px solid #334155; border-radius:16px;
-      padding:22px; box-shadow:0 12px 30px rgba(0,0,0,.35);
-      display:flex; flex-direction:column; gap:14px;
+    
+         @media (max-height: 600px) {
+       .card {
+         padding: 24px 16px 16px 16px;
+         gap: 12px;
+       }
+      .title {
+        font-size: 1.4rem;
+        margin-bottom: 2px;
+      }
+      .field {
+        gap: 4px;
+      }
+      input {
+        height: 40px;
+        padding: 10px 12px;
+      }
+      .btn {
+        padding: 10px;
+      }
     }
-    .title { font-weight:900; font-size:1.6rem; text-align:center; margin-bottom:6px; }
-    .field { display:flex; flex-direction:column; gap:6px; position:relative; }
-    label { font-size:.9rem; color:#cbd5e1; }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .title { 
+      font-weight:800; 
+      font-size:2rem; 
+      text-align:center; 
+      margin-bottom:8px; 
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+    
+    .field { 
+      display:flex; 
+      flex-direction:column; 
+      gap:8px; 
+      position:relative;
+      animation: fadeIn 0.8s ease-out;
+    }
+    
+    .field:nth-child(2) { animation-delay: 0.1s; }
+    .field:nth-child(3) { animation-delay: 0.2s; }
+    .field:nth-child(4) { animation-delay: 0.3s; }
+    .field:nth-child(5) { animation-delay: 0.4s; }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    label { 
+      font-size:.9rem; 
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    
     input {
-      width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; height:44px;
+      width:100%; 
+      padding:14px 16px; 
+      border-radius:12px; 
+      border:1px solid var(--border); 
+      background: var(--bg-dark); 
+      color: var(--text); 
+      height:48px;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      outline: none;
     }
-    .with-eye { padding-right:44px; }
+    
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      transform: translateY(-1px);
+    }
+    
+    input::placeholder {
+      color: var(--text-muted);
+      opacity: 0.7;
+    }
+    
+    .with-eye { 
+      padding-right:48px;
+    }
 
     .icon-btn {
-      position:absolute; right:8px; top:50%; transform:translateY(-50%);
-      width:40px; height:40px; display:grid; place-items:center;
-      background:transparent; border:0; border-radius:8px; cursor:pointer; color:#94a3b8;
+      position:absolute; 
+      right:8px; 
+      width:32px; 
+      height:32px; 
+      display:flex; 
+      align-items:center;
+      justify-content:center;
+      background:transparent; 
+      border:0; 
+      border-radius:8px; 
+      cursor:pointer; 
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+      top: 36px; 
     }
-    .icon-btn:hover { color:#cbd5e1; background:#0f1b33; }
-    .icon-btn:active { transform:translateY(-50%) scale(0.98); }
-    .icon-btn svg { width:22px; height:22px; aspect-ratio:1 / 1; display:block; }
-
+    
+    .icon-btn:hover { 
+      color: var(--text); 
+      background: var(--bg-hover);
+      transform: scale(1.05);
+    }
+    
+    .icon-btn:active { 
+      transform: scale(0.95); 
+    }
+    
+    .icon-btn svg { 
+      width:20px; 
+      height:20px; 
+      aspect-ratio:1 / 1; 
+      display:block;
+      flex-shrink: 0;
+      transform: translateY(1px);
+    }
+    
     .btn {
-      width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer;
-      font-weight:700;
+      width:100%; 
+      padding:14px; 
+      border-radius:12px; 
+      border:1px solid var(--border); 
+      background: var(--bg-hover); 
+      color: var(--text); 
+      cursor:pointer;
+      font-weight:600;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
     }
-    .btn:hover { background:#10192c; }
-    .muted { text-align:center; font-size:.9rem; color:#94a3b8; }
-    .link { color:#93c5fd; cursor:pointer; }
-    .error { color:#fca5a5; font-size:.9rem; min-height:1.2em; }
+    
+    .btn:hover { 
+      background: var(--accent); 
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+    }
+    
+    .btn:active {
+      transform: translateY(0);
+    }
+    
+    .muted { 
+      text-align:center; 
+      font-size:.9rem; 
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    
+    .link { 
+      color: var(--accent); 
+      cursor:pointer;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+    
+    .link:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+    
+    .links-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+      animation: fadeIn 1s ease-out;
+      animation-delay: 0.5s;
+      animation-fill-mode: both;
+    }
+    
+    .legal-links {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 0.8rem;
+    }
+    
+    .error { 
+      color: var(--danger); 
+      font-size:.9rem; 
+      min-height:1.2em;
+      text-align: center;
+      animation: shake 0.5s ease-in-out;
+    }
+    
+         @keyframes shake {
+       0%, 100% { transform: translateX(0); }
+       25% { transform: translateX(-5px); }
+       75% { transform: translateX(5px); }
+     }
+     
+     /* Custom scrollbar */
+     body::-webkit-scrollbar {
+       width: 8px;
+     }
+     
+     body::-webkit-scrollbar-track {
+       background: var(--bg-dark);
+       border-radius: 4px;
+     }
+     
+     body::-webkit-scrollbar-thumb {
+       background: var(--border);
+       border-radius: 4px;
+     }
+     
+     body::-webkit-scrollbar-thumb:hover {
+       background: var(--bg-hover);
+     }
   </style>
 </head>
 <body>
@@ -52,12 +318,12 @@
 
     <div class="field">
       <label for="email">E-mail</label>
-      <input id="email" type="email" autocomplete="email" />
+      <input id="email" type="email" autocomplete="email" placeholder="es. mario@esempio.com" />
     </div>
 
     <div class="field">
       <label for="password">Password</label>
-      <input id="password" class="with-eye" type="password" autocomplete="new-password" />
+      <input id="password" class="with-eye" type="password" autocomplete="new-password" placeholder="Scegli una password sicura" />
       <button id="toggleEye" class="icon-btn" type="button" aria-label="Mostra password" aria-pressed="false" title="Mostra password">
         <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
@@ -78,7 +344,17 @@
     </div>
 
     <button id="signupBtn" class="btn">Registrati</button>
+    
     <div class="muted">Hai già un account? <a href="login.html" class="link">Accedi</a></div>
+    
+    <div class="links-section">
+      <div class="legal-links">
+        <a href="terms.html" class="link">Termini di servizio</a>
+        <span class="muted">•</span>
+        <a href="privacy.html" class="link">Norme sulla privacy</a>
+      </div>
+    </div>
+    
     <div id="error" class="error"></div>
   </div>
 
@@ -100,36 +376,52 @@
     });
     const auth = firebase.auth();
     const db = firebase.database();
-    auth.onAuthStateChanged(u => { if (u) location.replace('index.html'); });
 
-    const $ = s => document.querySelector(s);
-    const showErr = (m)=> $("#error").textContent = m || "";
+    // Normalizza numeri: rimuove spazi/separatori, mantiene + e cifre
+    function normalizePhone(input){
+      if (!input) return "";
+      const trimmed = String(input).replace(/\s+/g, "");
+      const m = trimmed.match(/^\+?[0-9]{6,}$/);
+      if (!m) return "";
+      if (trimmed.startsWith('+')) return trimmed;
+      return trimmed;
+    }
 
-    // Toggle password + accessibilità
+    // Mappa errori Firebase in italiano
+    function mapErr(e){
+      const c = e?.code || "";
+      if (c === "auth/email-already-in-use") return "Email già registrata";
+      if (c === "auth/invalid-email") return "Email non valida";
+      if (c === "auth/weak-password") return "Password troppo debole (minimo 6 caratteri)";
+      if (c === "auth/too-many-requests") return "Troppi tentativi, riprova più tardi";
+      if (c === "auth/network-request-failed") return "Errore di rete";
+      return e?.message || "Errore sconosciuto";
+    }
+
+    // Mostra errore
+    function showErr(msg){
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = msg ? 'block' : 'none';
+    }
+
+    // Toggle password visibility
     (function(){
-      const btn = document.getElementById("toggleEye");
-      const slash = document.getElementById("eyeSlash");
-      const input = document.getElementById("password");
-      const setVisible = (visible) => {
-        input.type = visible ? "text" : "password";
-        slash.style.display = visible ? "block" : "none";
-        btn.setAttribute("aria-pressed", visible ? "true" : "false");
-        btn.setAttribute("title", visible ? "Nascondi password" : "Mostra password");
-      };
-      const toggle = () => setVisible(input.type === "password");
-      btn.addEventListener("click", toggle);
-      btn.addEventListener("keydown", (e)=> {
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
-      });
-      // Hold to peek
-      const pressStart = () => setVisible(true);
-      const pressEnd = () => setVisible(false);
-      btn.addEventListener("mousedown", pressStart);
-      btn.addEventListener("mouseup", pressEnd);
-      btn.addEventListener("mouseleave", pressEnd);
-      btn.addEventListener("touchstart", pressStart, { passive:true });
-      btn.addEventListener("touchend", pressEnd);
-      btn.addEventListener("touchcancel", pressEnd);
+      const btn = document.getElementById('toggleEye');
+      const input = document.getElementById('password');
+      const slash = document.getElementById('eyeSlash');
+      let isVisible = false;
+
+      function toggle(){
+        isVisible = !isVisible;
+        input.type = isVisible ? 'text' : 'password';
+        btn.setAttribute('aria-pressed', isVisible);
+        btn.setAttribute('title', isVisible ? 'Nascondi password' : 'Mostra password');
+        slash.style.display = isVisible ? 'block' : 'none';
+      }
+
+      btn.addEventListener('click', toggle);
+      btn.addEventListener('touchstart', toggle);
     })();
 
     // Registrazione
@@ -140,47 +432,40 @@
       const uname = document.getElementById("username").value.trim();
       const phoneRaw = document.getElementById("phone").value.trim();
       const phone = normalizePhone(phoneRaw);
-      if(!email || !pass || !uname) return showErr("Completa tutti i campi.");
+      
+      if(!email || !pass || !uname) return showErr("Completa tutti i campi obbligatori.");
+      
       try{
         // se presente, verifica univocità telefono tramite indice /byPhone/<num>
         if (phone) {
           const phoneSnap = await db.ref("byPhone/"+phone).once("value");
-          if (phoneSnap.exists()) { return showErr("Numero di telefono già registrato."); }
+          if (phoneSnap.exists()) { 
+            return showErr("Numero di telefono già registrato."); 
+          }
         }
 
         const cred = await auth.createUserWithEmailAndPassword(email, pass);
         const uid = cred.user.uid;
         await db.ref("users/"+uid+"/profile").set({ email, phone: phone || null, name: uname });
+        
         // indici rapidi per lookup
         const updates = {};
         updates["byEmail/"+email.toLowerCase()] = uid;
         if (phone) updates["byPhone/"+phone] = uid;
         await db.ref().update(updates);
+        
         location.replace('index.html');
-      }catch(e){ showErr(mapErr(e)); }
+      }catch(e){ 
+        showErr(mapErr(e)); 
+      }
     });
 
-    // Normalizza numeri: rimuove spazi/separatori, mantiene + e cifre, toUpper non necessario
-    function normalizePhone(input){
-      if (!input) return "";
-      const trimmed = input.replace(/\s+/g, "");
-      // Consenti + all'inizio, poi cifre
-      const m = trimmed.match(/^\+?[0-9]{6,}$/);
-      if (!m) return ""; // se non valido, non salviamo
-      // Rimuovi zeri iniziali non significativi se presente +?
-      // Manteniamo il '+' se fornito per distinguere internazionale
-      if (trimmed.startsWith('+')) return trimmed;
-      return trimmed; // altrimenti ritorna solo cifre
-    }
-
-    function mapErr(e){
-      const c = e?.code || "";
-      if (c.includes("auth/invalid-email")) return "E-mail non valida.";
-      if (c.includes("auth/weak-password")) return "Password troppo debole (min 6).";
-      if (c.includes("auth/email-already-in-use")) return "E-mail già registrata.";
-      // return "Errore: " + (e?.message || e);
-      return "Errore, riprova!";
-    }
+    // Enter key per registrazione
+    document.addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter') {
+        document.getElementById('signupBtn').click();
+      }
+    });
   </script>
 </body>
 </html>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Termini di Servizio - Interlinked</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --gap: 16px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: var(--gap);
+      gap: var(--gap);
+      animation: slideUp 0.6s ease-out;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Topbar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg-card);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.1s;
+      animation-fill-mode: both;
+      position: relative;
+      z-index: 100;
+    }
+
+    .title {
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--accent);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.2s;
+      animation-fill-mode: both;
+    }
+
+    .iconbtn {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      cursor: pointer;
+      color: var(--text);
+      font-size: 20px;
+      transition: all 0.2s ease;
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.2s;
+      animation-fill-mode: both;
+    }
+
+    .iconbtn:hover {
+      background: var(--bg-hover);
+      transform: scale(1.04);
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+
+    /* Content */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.3s;
+      animation-fill-mode: both;
+    }
+
+    .content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .content::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+      border-radius: 4px;
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .content::-webkit-scrollbar-thumb:hover {
+      background: var(--bg-hover);
+    }
+
+    h1 {
+      color: var(--accent);
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+    }
+
+    h2 {
+      color: var(--text);
+      font-size: 1.3rem;
+      margin: 1.5rem 0 0.8rem 0;
+      font-weight: 600;
+    }
+
+    h3 {
+      color: var(--text);
+      font-size: 1.1rem;
+      margin: 1.2rem 0 0.6rem 0;
+      font-weight: 600;
+    }
+
+    p {
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    ul, ol {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+      color: var(--text-muted);
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+      line-height: 1.6;
+    }
+
+    .highlight {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .important {
+      background: rgba(239, 68, 68, 0.1);
+      border-left: 4px solid var(--danger);
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .important p {
+      margin: 0;
+      color: var(--text);
+    }
+
+    /* Animations */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mobile optimization */
+    @media (max-height: 700px) {
+      .app {
+        padding: 12px;
+        gap: 12px;
+      }
+      
+      .content {
+        padding: 16px;
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.8rem;
+      }
+      
+      h2 {
+        font-size: 1.2rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+    }
+
+    @media (max-height: 600px) {
+      .app {
+        padding: 8px;
+        gap: 8px;
+      }
+      
+      .topbar {
+        padding: 8px 12px;
+      }
+      
+      .content {
+        padding: 12px;
+      }
+      
+      h1 {
+        font-size: 1.3rem;
+        margin-bottom: 0.6rem;
+      }
+      
+      h2 {
+        font-size: 1.1rem;
+        margin: 1rem 0 0.5rem 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="iconbtn" id="back" title="Indietro" aria-label="Indietro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <div class="title">Termini di Servizio</div>
+      <div style="width: 38px;"></div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <h1>Termini di Servizio di Interlinked</h1>
+      
+      <p><strong>Ultimo aggiornamento:</strong> 26 Agosto 2024</p>
+      
+      <p>Benvenuto in Interlinked. Utilizzando la nostra applicazione, accetti di essere vincolato da questi Termini di Servizio ("Termini"). Se non accetti questi termini, ti preghiamo di non utilizzare il nostro servizio.</p>
+
+      <h2>1. Accettazione dei Termini</h2>
+      <p>Utilizzando Interlinked, confermi di aver letto, compreso e accettato questi Termini di Servizio. Questi termini costituiscono un accordo vincolante tra te e Interlinked riguardo all'utilizzo del nostro servizio.</p>
+
+      <h2>2. Descrizione del Servizio</h2>
+      <p>Interlinked è un'applicazione di comunicazione e collaborazione che consente agli utenti di:</p>
+      <ul>
+        <li>Creare e gestire contatti</li>
+        <li>Comunicare in tempo reale attraverso stanze virtuali</li>
+        <li>Condividere contenuti interattivi</li>
+        <li>Collaborare su progetti attraverso strumenti di disegno</li>
+      </ul>
+
+      <h2>3. Registrazione e Account</h2>
+      <h3>3.1 Creazione Account</h3>
+      <p>Per utilizzare Interlinked, devi creare un account fornendo informazioni accurate e complete. Sei responsabile di mantenere la riservatezza delle tue credenziali di accesso.</p>
+
+      <h3>3.2 Responsabilità dell'Account</h3>
+      <p>Sei responsabile di tutte le attività che si verificano sotto il tuo account. Devi notificarci immediatamente qualsiasi uso non autorizzato del tuo account.</p>
+
+      <h2>4. Utilizzo Accettabile</h2>
+      <p>Ti impegni a utilizzare Interlinked solo per scopi legittimi e in conformità con questi Termini. In particolare, non devi:</p>
+      <ul>
+        <li>Utilizzare il servizio per attività illegali o fraudolente</li>
+        <li>Violare i diritti di proprietà intellettuale</li>
+        <li>Trasmettere contenuti offensivi, diffamatori o inappropriati</li>
+        <li>Tentare di accedere non autorizzato ai nostri sistemi</li>
+        <li>Interferire con il funzionamento del servizio</li>
+        <li>Utilizzare il servizio per spam o attività commerciali non autorizzate</li>
+      </ul>
+
+      <h2>5. Contenuti dell'Utente</h2>
+      <h3>5.1 Proprietà dei Contenuti</h3>
+      <p>Mantieni la proprietà dei contenuti che carichi o crei su Interlinked. Tuttavia, ci concedi una licenza limitata per utilizzare, riprodurre e distribuire tali contenuti al fine di fornire il servizio.</p>
+
+      <h3>5.2 Responsabilità dei Contenuti</h3>
+      <p>Sei responsabile di tutti i contenuti che carichi, pubblichi o condividi attraverso Interlinked. Non possiamo garantire la riservatezza dei contenuti condivisi.</p>
+
+      <h2>6. Privacy e Protezione dei Dati</h2>
+      <p>La protezione della tua privacy è importante per noi. La nostra raccolta e utilizzo delle informazioni personali sono regolati dalla nostra <span class="highlight">Norma sulla Privacy</span>, che forma parte integrante di questi Termini.</p>
+
+      <h2>7. Sicurezza</h2>
+      <p>Implementiamo misure di sicurezza appropriate per proteggere i tuoi dati. Tuttavia, nessun sistema è completamente sicuro. Ti incoraggiamo a utilizzare password forti e a non condividere le tue credenziali.</p>
+
+      <h2>8. Disponibilità del Servizio</h2>
+      <p>Ci sforziamo di mantenere Interlinked disponibile 24/7, ma non possiamo garantire un servizio ininterrotto. Potremmo sospendere temporaneamente il servizio per manutenzione o aggiornamenti.</p>
+
+      <h2>9. Modifiche ai Termini</h2>
+      <p>Ci riserviamo il diritto di modificare questi Termini in qualsiasi momento. Le modifiche saranno effettive immediatamente dopo la pubblicazione. Il tuo utilizzo continuato del servizio costituisce accettazione delle modifiche.</p>
+
+      <h2>10. Limitazione di Responsabilità</h2>
+      <div class="important">
+        <p><strong>In nessun caso Interlinked sarà responsabile per danni indiretti, incidentali, speciali o consequenziali derivanti dall'utilizzo del nostro servizio.</strong></p>
+      </div>
+
+      <h2>11. Indennizzo</h2>
+      <p>Ti impegni a indennizzare e tenere indenne Interlinked da qualsiasi reclamo, danno o spesa derivante dal tuo utilizzo del servizio o dalla violazione di questi Termini.</p>
+
+      <h2>12. Legge Applicabile</h2>
+      <p>Questi Termini sono regolati e interpretati in conformità con le leggi italiane. Qualsiasi controversia sarà risolta dai tribunali competenti in Italia.</p>
+
+      <h2>13. Disposizioni Generali</h2>
+      <p>Se una disposizione di questi Termini è ritenuta invalida, le restanti disposizioni rimarranno in pieno vigore. Questi Termini costituiscono l'intero accordo tra te e Interlinked.</p>
+
+      <h2>14. Contatti</h2>
+      <p>Per domande riguardo questi Termini di Servizio, contattaci attraverso l'applicazione o all'indirizzo di supporto fornito.</p>
+
+      <p><em>Grazie per aver scelto Interlinked!</em></p>
+    </div>
+  </div>
+
+  <script>
+    // Back button functionality
+    document.getElementById("back").addEventListener("click", () => {
+      history.back();
+    });
+
+    // Prevent scrolling on body
+    document.body.style.overflow = 'hidden';
+  </script>
+</body>
+</html>

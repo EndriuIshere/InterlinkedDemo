@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Norme sulla Privacy - Interlinked</title>
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --bg-card: #1e293b;
+      --bg-hover: #334155;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --gap: 16px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    .app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: var(--gap);
+      gap: var(--gap);
+      animation: slideUp 0.6s ease-out;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Topbar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: var(--bg-card);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.1s;
+      animation-fill-mode: both;
+      position: relative;
+      z-index: 100;
+    }
+
+    .title {
+      font-weight: 700;
+      font-size: 1.2rem;
+      color: var(--accent);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.2s;
+      animation-fill-mode: both;
+    }
+
+    .iconbtn {
+      display: grid;
+      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      cursor: pointer;
+      color: var(--text);
+      font-size: 20px;
+      transition: all 0.2s ease;
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.2s;
+      animation-fill-mode: both;
+    }
+
+    .iconbtn:hover {
+      background: var(--bg-hover);
+      transform: scale(1.04);
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+
+    /* Content */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.3s;
+      animation-fill-mode: both;
+    }
+
+    .content::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .content::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+      border-radius: 4px;
+    }
+
+    .content::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+
+    .content::-webkit-scrollbar-thumb:hover {
+      background: var(--bg-hover);
+    }
+
+    h1 {
+      color: var(--accent);
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+    }
+
+    h2 {
+      color: var(--text);
+      font-size: 1.3rem;
+      margin: 1.5rem 0 0.8rem 0;
+      font-weight: 600;
+    }
+
+    h3 {
+      color: var(--text);
+      font-size: 1.1rem;
+      margin: 1.2rem 0 0.6rem 0;
+      font-weight: 600;
+    }
+
+    p {
+      margin-bottom: 1rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    ul, ol {
+      margin: 1rem 0;
+      padding-left: 1.5rem;
+      color: var(--text-muted);
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+      line-height: 1.6;
+    }
+
+    .highlight {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .important {
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 4px solid var(--success);
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .important p {
+      margin: 0;
+      color: var(--text);
+    }
+
+    .warning {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 4px solid var(--warn);
+      padding: 1rem;
+      margin: 1rem 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .warning p {
+      margin: 0;
+      color: var(--text);
+    }
+
+    /* Animations */
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mobile optimization */
+    @media (max-height: 700px) {
+      .app {
+        padding: 12px;
+        gap: 12px;
+      }
+      
+      .content {
+        padding: 16px;
+      }
+      
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.8rem;
+      }
+      
+      h2 {
+        font-size: 1.2rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+    }
+
+    @media (max-height: 600px) {
+      .app {
+        padding: 8px;
+        gap: 8px;
+      }
+      
+      .topbar {
+        padding: 8px 12px;
+      }
+      
+      .content {
+        padding: 12px;
+      }
+      
+      h1 {
+        font-size: 1.3rem;
+        margin-bottom: 0.6rem;
+      }
+      
+      h2 {
+        font-size: 1.1rem;
+        margin: 1rem 0 0.5rem 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Topbar -->
+    <div class="topbar">
+      <button class="iconbtn" id="back" title="Indietro" aria-label="Indietro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <div class="title">Norme sulla Privacy</div>
+      <div style="width: 38px;"></div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <h1>Norme sulla Privacy di Interlinked</h1>
+      
+      <p><strong>Ultimo aggiornamento:</strong> 26 Agosto 2024</p>
+      
+      <p>La tua privacy è fondamentale per noi. Questa Norma sulla Privacy spiega come raccogliamo, utilizziamo, proteggiamo e condividiamo le tue informazioni personali quando utilizzi Interlinked.</p>
+
+      <h2>1. Informazioni che Raccogliamo</h2>
+      
+      <h3>1.1 Informazioni che Fornisci Direttamente</h3>
+      <p>Quando crei un account o utilizzi i nostri servizi, potremmo raccogliere:</p>
+      <ul>
+        <li><strong>Informazioni di identificazione:</strong> nome, email, numero di telefono</li>
+        <li><strong>Informazioni del profilo:</strong> avatar, preferenze, impostazioni</li>
+        <li><strong>Contenuti:</strong> messaggi, disegni, file che carichi</li>
+        <li><strong>Informazioni di contatto:</strong> contatti che aggiungi alla tua rubrica</li>
+      </ul>
+
+      <h3>1.2 Informazioni Raccolte Automaticamente</h3>
+      <p>Utilizzando Interlinked, potremmo raccogliere automaticamente:</p>
+      <ul>
+        <li><strong>Informazioni di utilizzo:</strong> come e quando utilizzi l'app</li>
+        <li><strong>Informazioni tecniche:</strong> tipo di dispositivo, sistema operativo, versione dell'app</li>
+        <li><strong>Informazioni di rete:</strong> indirizzo IP, tipo di connessione</li>
+        <li><strong>Informazioni di localizzazione:</strong> solo se esplicitamente consentito</li>
+      </ul>
+
+      <h2>2. Come Utilizziamo le Tue Informazioni</h2>
+      <p>Utilizziamo le tue informazioni per:</p>
+      <ul>
+        <li>Fornire, mantenere e migliorare i nostri servizi</li>
+        <li>Gestire il tuo account e le tue preferenze</li>
+        <li>Facilitare la comunicazione tra utenti</li>
+        <li>Risolvere problemi tecnici e garantire la sicurezza</li>
+        <li>Inviare notifiche importanti relative al servizio</li>
+        <li>Rispettare gli obblighi legali</li>
+      </ul>
+
+      <h2>3. Condivisione delle Informazioni</h2>
+      
+      <h3>3.1 Condivisione con Altri Utenti</h3>
+      <p>Alcune delle tue informazioni potrebbero essere visibili ad altri utenti:</p>
+      <ul>
+        <li>Il tuo nome e avatar ai tuoi contatti</li>
+        <li>I contenuti che condividi nelle stanze</li>
+        <li>Il tuo stato di presenza (online/offline)</li>
+      </ul>
+
+      <h3>3.2 Condivisione con Terze Parti</h3>
+      <p>Non vendiamo, affittiamo o condividiamo le tue informazioni personali con terze parti, eccetto:</p>
+      <ul>
+        <li>Con il tuo esplicito consenso</li>
+        <li>Per rispettare obblighi legali</li>
+        <li>Con fornitori di servizi che ci aiutano a operare (con adeguate protezioni)</li>
+        <li>In caso di fusione o acquisizione aziendale</li>
+      </ul>
+
+      <h2>4. Sicurezza delle Informazioni</h2>
+      <div class="important">
+        <p><strong>Implementiamo misure di sicurezza tecniche e organizzative appropriate per proteggere le tue informazioni personali contro accesso non autorizzato, alterazione, divulgazione o distruzione.</strong></p>
+      </div>
+      
+      <p>Le nostre misure di sicurezza includono:</p>
+      <ul>
+        <li>Crittografia dei dati in transito e a riposo</li>
+        <li>Controlli di accesso rigorosi</li>
+        <li>Monitoraggio continuo della sicurezza</li>
+        <li>Aggiornamenti regolari dei sistemi</li>
+        <li>Formazione del personale sulla sicurezza</li>
+      </ul>
+
+      <h2>5. Conservazione dei Dati</h2>
+      <p>Conserviamo le tue informazioni personali solo per il tempo necessario a:</p>
+      <ul>
+        <li>Fornire i nostri servizi</li>
+        <li>Rispettare obblighi legali</li>
+        <li>Risolvere controversie</li>
+        <li>Applicare i nostri accordi</li>
+      </ul>
+      
+      <p>Quando non abbiamo più bisogno delle tue informazioni, le eliminiamo in modo sicuro.</p>
+
+      <h2>6. I Tuoi Diritti</h2>
+      <p>Hai il diritto di:</p>
+      <ul>
+        <li><strong>Accesso:</strong> Richiedere una copia delle tue informazioni personali</li>
+        <li><strong>Rettifica:</strong> Correggere informazioni inaccurate o incomplete</li>
+        <li><strong>Cancellazione:</strong> Richiedere la cancellazione delle tue informazioni</li>
+        <li><strong>Limitazione:</strong> Limitare l'utilizzo delle tue informazioni</li>
+        <li><strong>Portabilità:</strong> Ricevere le tue informazioni in formato strutturato</li>
+        <li><strong>Opposizione:</strong> Opporti al trattamento delle tue informazioni</li>
+      </ul>
+
+      <h2>7. Cookie e Tecnologie Simili</h2>
+      <p>Utilizziamo cookie e tecnologie simili per:</p>
+      <ul>
+        <li>Mantenere la tua sessione attiva</li>
+        <li>Ricordare le tue preferenze</li>
+        <li>Analizzare l'utilizzo del servizio</li>
+        <li>Migliorare le prestazioni</li>
+      </ul>
+      
+      <p>Puoi controllare l'utilizzo dei cookie attraverso le impostazioni del tuo browser.</p>
+
+      <h2>8. Trasferimenti Internazionali</h2>
+      <p>Le tue informazioni potrebbero essere trasferite e processate in paesi diversi dal tuo. Assicuriamo che tali trasferimenti avvengano in conformità con le leggi sulla protezione dei dati applicabili.</p>
+
+      <h2>9. Minori</h2>
+      <div class="warning">
+        <p><strong>Interlinked non è destinato a minori di 13 anni. Non raccogliamo consapevolmente informazioni personali da minori di 13 anni. Se sei un genitore e ritieni che tuo figlio ci abbia fornito informazioni personali, contattaci immediatamente.</strong></p>
+      </div>
+
+      <h2>10. Modifiche a Questa Norma</h2>
+      <p>Potremmo aggiornare questa Norma sulla Privacy di tanto in tanto. Ti notificheremo le modifiche significative attraverso l'applicazione o via email. Ti incoraggiamo a rivedere periodicamente questa norma.</p>
+
+      <h2>11. Contatti</h2>
+      <p>Se hai domande su questa Norma sulla Privacy o sulle nostre pratiche di protezione dei dati, contattaci:</p>
+      <ul>
+        <li>Attraverso l'applicazione Interlinked</li>
+        <li>All'indirizzo di supporto fornito</li>
+        <li>Per questioni relative alla privacy: privacy@interlinked.app</li>
+      </ul>
+
+      <h2>12. Diritti GDPR (se applicabile)</h2>
+      <p>Se risiedi nell'Unione Europea, hai diritti aggiuntivi ai sensi del GDPR, inclusi:</p>
+      <ul>
+        <li>Il diritto di revocare il consenso in qualsiasi momento</li>
+        <li>Il diritto di presentare un reclamo all'autorità di controllo</li>
+        <li>Il diritto di essere informato su violazioni dei dati</li>
+      </ul>
+
+      <p><em>Grazie per aver scelto Interlinked. La tua privacy è importante per noi.</em></p>
+    </div>
+  </div>
+
+  <script>
+    // Back button functionality
+    document.getElementById("back").addEventListener("click", () => {
+      history.back();
+    });
+
+    // Prevent scrolling on body
+    document.body.style.overflow = 'hidden';
+  </script>
+</body>
+</html>

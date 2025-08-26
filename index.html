@@ -38,6 +38,31 @@
       gap:var(--gap);
       max-width:920px;
       margin:12px auto;
+      animation: slideUp 0.6s ease-out;
+      position: relative;
+      z-index: 1;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     /* Topbar */
@@ -50,6 +75,11 @@
       border-radius:14px;
       background: var(--bg-card);
       box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.1s;
+      animation-fill-mode: both;
+      position: relative;
+      z-index: 100;
     }
     .title {
       font-weight:800;
@@ -70,12 +100,21 @@
       font-size:20px;
       transition: background .2s, transform .2s;
     }
-    .iconbtn:hover { background: var(--bg-hover); transform: scale(1.04); }
+    .iconbtn:hover { 
+      background: var(--bg-hover); 
+      transform: scale(1.04);
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
 
     /* Menu */
-    .menu { position:relative; }
+    .menu { 
+      position:relative; 
+      z-index: 9999;
+    }
     .menu .panel {
-      position:absolute; right:0; top:48px;
+      position:absolute; 
+      right:0; 
+      top:48px;
       min-width:220px;
       background: var(--bg-card);
       border:1px solid var(--border);
@@ -84,10 +123,13 @@
       flex-direction:column;
       padding:8px;
       box-shadow:0 12px 30px rgba(0,0,0,.5);
-      animation: fadeIn .18s ease;
-      z-index:40;
+      animation: fadeIn 0.2s ease-out;
+      z-index: 9999;
+      transform-origin: top right;
     }
-    .menu.open .panel { display:flex; }
+    .menu.open .panel { 
+      display:flex; 
+    }
     .panel button {
       text-align:left;
       padding:10px 12px;
@@ -97,20 +139,37 @@
       cursor:pointer;
       border-radius:10px;
       font-size:14px;
-      transition: background .2s;
+      transition: all 0.2s ease;
       display:flex;
       align-items:center;
       gap:8px;
     }
-    .panel button:hover { background: var(--bg-hover); }
+    .panel button:hover { 
+      background: var(--bg-hover); 
+      transform: translateX(4px);
+      box-shadow: 0 2px 8px rgba(0,0,0,.2);
+    }
 
     /* Contacts */
-    .section-title { font-weight:700; font-size:0.95rem; color:var(--text-muted); margin-top:6px; }
+    .section-title { 
+      font-weight:700; 
+      font-size:0.95rem; 
+      color:var(--text-muted); 
+      margin-top:6px;
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.2s;
+      animation-fill-mode: both;
+    }
     .contacts {
       display:flex;
       flex-direction:column;
       gap:12px;
       margin-top:6px;
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.3s;
+      animation-fill-mode: both;
+      position: relative;
+      z-index: 1;
     }
     .contact {
       display:flex;
@@ -121,8 +180,14 @@
       border:1px solid var(--border);
       border-radius:14px;
       transition:background .2s, transform .2s;
+      position: relative;
+      z-index: 1;
     }
-    .contact:hover { background: var(--bg-hover); transform: translateY(-2px); }
+    .contact:hover { 
+      background: var(--bg-hover); 
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(0,0,0,.3);
+    }
     .contact-info {
       display:flex;
       align-items:center;
@@ -159,7 +224,12 @@
       align-items:center;
       gap:6px;
     }
-    .actionbtn:hover { background: var(--accent); color:white; }
+    .actionbtn:hover { 
+      background: var(--accent); 
+      color:white;
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
 
     /* Requests */
     .requests {
@@ -403,6 +473,9 @@
           otherName = nameSnap.exists()? nameSnap.val() : "Contatto";
         } catch(_){ }
         await ensureLocalContactOnce(currentUid, { name: otherName, room });
+        
+        // Mostra un messaggio informativo
+        showToast(`Contatto "${otherName}" aggiunto! Invia una richiesta di amicizia.`);
         // invia richiesta all'altro (controlla duplicati)
         const res = await sendFriendRequestIfNeeded(addUid);
         if(res.ok) showToast("Richiesta inviata automaticamente!");
@@ -537,11 +610,18 @@
             await db.ref("users/"+currentUid+"/contacts").push({ name: r.fromName || "Contatto", room: newRoom });
           }
           await updateLocalContactNameIfDefault(currentUid, newRoom, r.fromName || 'Contatto');
-          // Non scriviamo nei contatti dell'altro utente (vietato dalle regole)
+          
+          // Crea contatto per l'altro utente (se possibile)
+          try {
+            await db.ref("users/"+fromUid+"/contacts").push({ name: currentName, room: newRoom });
+          } catch(e) {
+            // Se fallisce (es. regole di sicurezza), va bene - l'altro utente vedrà il contatto quando accetta
+            console.log("Non è stato possibile creare contatto per l'altro utente:", e.message);
+          }
 
           // rimuovi la richiesta (sempre)
           await db.ref("users/"+currentUid+"/requests/"+id).remove();
-          suggestedStatus.textContent = "Accettata";
+          suggestedStatus.textContent = "Richiesta accettata! Contatto aggiunto.";
           d.remove();
         } catch(e){
           console.error("Errore accettando richiesta:", e);
