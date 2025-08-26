@@ -23,7 +23,7 @@
     .field { display:flex; flex-direction:column; gap:6px; position:relative; }
     label { font-size:.9rem; color:#cbd5e1; }
     input {
-      width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb;
+      width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; height:44px;
     }
     /* Evita che il testo si sovrapponga all’icona quando il tipo cambia */
     .with-eye { padding-right:44px; }
@@ -31,12 +31,12 @@
     /* Bottone icona accessibile e non deformabile */
     .icon-btn {
       position:absolute; right:8px; top:50%; transform:translateY(-50%);
-      width:36px; height:36px; display:grid; place-items:center;
+      width:40px; height:40px; display:grid; place-items:center;
       background:transparent; border:0; border-radius:8px; cursor:pointer; color:#94a3b8;
     }
     .icon-btn:hover { color:#cbd5e1; background:#0f1b33; }
     .icon-btn:active { transform:translateY(-50%) scale(0.98); }
-    .icon-btn svg { width:22px; height:22px; aspect-ratio:1 / 1; }
+    .icon-btn svg { width:22px; height:22px; aspect-ratio:1 / 1; display:block; }
     .btn {
       width:100%; padding:12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer;
       font-weight:700;
@@ -115,17 +115,29 @@
       const btn = $("#toggleEye");
       const slash = $("#eyeSlash");
       const input = $("#password");
-      const toggle = () => {
-        const show = input.type === "password";
-        input.type = show ? "text" : "password";
-        slash.style.display = show ? "block" : "none";
-        btn.setAttribute("aria-pressed", show ? "true" : "false");
-        btn.setAttribute("title", show ? "Nascondi password" : "Mostra password");
+      const setVisible = (visible) => {
+        input.type = visible ? "text" : "password";
+        slash.style.display = visible ? "block" : "none";
+        btn.setAttribute("aria-pressed", visible ? "true" : "false");
+        btn.setAttribute("title", visible ? "Nascondi password" : "Mostra password");
       };
+      const toggle = () => setVisible(input.type === "password");
+
+      // Click toggles
       btn.addEventListener("click", toggle);
       btn.addEventListener("keydown", (e)=> {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
       });
+
+      // Hold-to-peek while pressed
+      const pressStart = () => setVisible(true);
+      const pressEnd = () => setVisible(false);
+      btn.addEventListener("mousedown", pressStart);
+      btn.addEventListener("mouseup", pressEnd);
+      btn.addEventListener("mouseleave", pressEnd);
+      btn.addEventListener("touchstart", pressStart, { passive:true });
+      btn.addEventListener("touchend", pressEnd);
+      btn.addEventListener("touchcancel", pressEnd);
     })();
 
     // Login con email O telefono e password
@@ -190,8 +202,8 @@
       if (c.includes("auth/user-not-found")) return "Utente inesistente.";
       if (c.includes("auth/wrong-password")) return "Password errata.";
       if (c.includes("auth/popup-closed-by-user")) return "Accesso annullato.";
-      // return "Errore: " + (e?.message || e);
-      return "Errore, riprova!";
+      return "Errore: " + (e?.message || e);
+      //return "Errore, riprova!";
     }
 
     // Risolve un identificativo generico (email o telefono) in un'email per Firebase Auth
@@ -202,8 +214,18 @@
       }
       if (normPhone) {
         try {
-          const snap = await firebase.database().ref('byPhone/'+normPhone).once('value');
-          const uid = snap.val();
+          // prefer fast index
+          const idx = await firebase.database().ref('byPhone/'+normPhone).once('value');
+          let uid = idx.val();
+          if (!uid) {
+            // fallback scan: find profile.phone === normPhone
+            const all = await firebase.database().ref('users').once('value');
+            const users = all.val() || {};
+            for (const k in users){
+              const p = users[k]?.profile || {};
+              if ((p.phone || '') === normPhone) { uid = k; break; }
+            }
+          }
           if (!uid) return { email: null };
           const prof = await firebase.database().ref('users/'+uid+'/profile/email').once('value');
           const email = prof.val() || null;
