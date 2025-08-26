@@ -15,7 +15,9 @@
     .iconbtn { display:inline-grid; place-items:center; width:36px; height:36px;
       border-radius:10px; border:1px solid #334155; background:#0b1220; cursor:pointer; color:white; font-size:18px; }
     .iconbtn:hover { background:#10192c; }
-    .username { text-align:center; font-weight:700; }
+    .username { text-align:center; font-weight:700; display:flex; align-items:center; justify-content:center; gap:8px; }
+    .presence-dot { width:10px; height:10px; border-radius:50%; display:inline-block; background:#ef4444; box-shadow:0 0 8px rgba(0,0,0,.4); }
+    .presence-on { background:#22c55e !important; }
     .kebab { font-size:22px; line-height:0; color:white; }
     .menu { position:relative; justify-self:end; }
     .menu .panel { position:absolute; right:0; top:44px; min-width:200px; padding:10px; border:1px solid #334155;
@@ -38,7 +40,7 @@
     <!-- Topbar -->
     <div class="topbar">
       <button class="iconbtn" id="back" title="Indietro" aria-label="Indietro">⟵</button>
-      <div class="username" id="user">stanza</div>
+      <div class="username" id="user"><span id="userName">stanza</span> <span id="presenceDot" class="presence-dot" title="Offline"></span></div>
       <div class="menu" id="menu">
         <button class="iconbtn kebab" aria-haspopup="true" aria-expanded="false" title="Menu rapido">⋮</button>
         <div class="panel" role="menu">
@@ -53,10 +55,9 @@
       </div>
     </div>
 
-    <!-- Seconda riga -->
+    <!-- Seconda riga: LIVE indicator only -->
     <div class="controls">
-      <span class="pill">Stanza: <code class="mono" id="roomLbl"></code></span>
-      <span class="pill">Connesso: <b id="rtFlag" class="warn">OFF</b></span>
+      <span class="pill">LIVE: <b id="rtFlag" class="warn">OFF</b></span>
     </div>
 
     <!-- Canvas -->
@@ -120,7 +121,6 @@
     const CLIENT = 'c_' + rndId();
     const ROOM = (location.hash && location.hash.slice(1)) || ('room_' + rndId());
     if (!location.hash) history.replaceState(null, '', location.pathname + '#' + ROOM);
-    $('#roomLbl').textContent = ROOM;
     // Try to resolve a friendly name for this room by scanning current user's contacts
     try {
       firebase.auth().onAuthStateChanged(async (u)=>{
@@ -132,9 +132,10 @@
           const c = contacts[k];
           if (c && c.room === ROOM){ display = c.name || null; break; }
         }
-        $('#user').textContent = display ? display : ('Stanza ' + ROOM);
+        const nameEl = document.getElementById('userName');
+        if (nameEl) nameEl.textContent = display ? display : ('Stanza ' + ROOM);
       });
-    } catch(_){ $('#user').textContent = 'Stanza ' + ROOM; }
+    } catch(_){ const nameEl = document.getElementById('userName'); if (nameEl) nameEl.textContent = 'Stanza ' + ROOM; }
 
     let RT = { enabled:false, db:null };
 
@@ -244,17 +245,23 @@
     /************ REALTIME ************/
     function setRt(on,msg){
       RT.enabled = !!on;
-      $('#rtFlag').textContent = on? 'ON':'OFF';
-      $('#rtFlag').className = on? 'ok' : 'warn';
+      const flag = document.getElementById('rtFlag');
+      if (flag){
+        flag.textContent = on? 'ON':'OFF';
+        flag.className = on? 'ok' : 'warn';
+      }
       if (msg) console.log('Realtime:', msg);
     }
     function initRealtime(){
       try{
         const dbi  = firebase.database();
         RT.db = dbi;
+        const INIT_TS = Date.now();
         dbi.ref('rooms/'+ROOM+'/events').on('child_added', snap=>{
           const ev = snap.val(); if (!ev) return;
           if (ev.client === CLIENT) return;
+          // Ignore historical events from before we joined to prevent flash
+          if (typeof ev.ts === 'number' && ev.ts < INIT_TS) return;
           if (ev.type === 'hover'){
             const p = ev.payload; applyBrush(p.x, p.y, p.c, p.r);
           }
@@ -263,10 +270,71 @@
       }catch(e){ console.error(e); setRt(false, 'errore init'); }
     }
 
+    // Presence: write my heartbeat under /rooms/<ROOM>/presence/<CLIENT> and watch others
+    function initPresence(){
+      try{
+        const presenceRef = firebase.database().ref('rooms/'+ROOM+'/presence');
+        const myRef = presenceRef.child(CLIENT);
+        const dot = document.getElementById('presenceDot');
+
+        function updateHeartbeat(){
+          myRef.set({ ts: firebase.database.ServerValue.TIMESTAMP });
+        }
+        // Periodic heartbeat
+        updateHeartbeat();
+        const hb = setInterval(updateHeartbeat, 5000);
+
+        // Cleanup on disconnect and unload
+        myRef.onDisconnect().remove();
+        window.addEventListener('beforeunload', ()=>{ try{ clearInterval(hb); myRef.remove(); }catch(_){ } });
+
+        // Watch others: if any other client wrote in the last 10s → online
+        presenceRef.on('value', (s)=>{
+          const all = s.val() || {};
+          const now = Date.now();
+          let someoneElseOnline = false;
+          for (const k in all){
+            if (k === CLIENT) continue;
+            const ts = all[k]?.ts || 0;
+            if (now - ts <= 10000) { someoneElseOnline = true; break; }
+          }
+          if (someoneElseOnline){
+            dot.classList.add('presence-on');
+            dot.setAttribute('title', 'Online');
+          } else {
+            dot.classList.remove('presence-on');
+            dot.setAttribute('title', 'Offline');
+          }
+        });
+      }catch(e){ console.warn('presence error', e); }
+    }
+
     /************ BOOT ************/
     resizeCanvas();
     requestAnimationFrame(drawFrame);
     initRealtime();
+    initPresence();
+
+    // Periodic pruning of old events to keep DB small without deleting the room
+    (function initPruning(){
+      try{
+        const EVENTS_TTL_MS = 60000; // keep last 60s of interactions
+        const CLEANUP_INTERVAL_MS = 15000; // run every 15s
+        const eventsRef = firebase.database().ref('rooms/'+ROOM+'/events');
+        async function prune(){
+          const cutoff = Date.now() - EVENTS_TTL_MS;
+          try {
+            const snap = await eventsRef.orderByChild('ts').endAt(cutoff).once('value');
+            const old = snap.val() || {};
+            const updates = {};
+            for (const key in old){ updates[key] = null; }
+            if (Object.keys(updates).length){ await eventsRef.update(updates); }
+          } catch(e){ /* ignore cleanup errors */ }
+        }
+        prune();
+        setInterval(prune, CLEANUP_INTERVAL_MS);
+      }catch(_){ /* ignore */ }
+    })();
   </script>
 </body>
 </html>
