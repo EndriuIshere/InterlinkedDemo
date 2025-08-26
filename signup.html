@@ -72,6 +72,11 @@
       <input id="username" type="text" placeholder="Scegli un nome utente" />
     </div>
 
+    <div class="field">
+      <label for="phone">Telefono (opzionale)</label>
+      <input id="phone" type="tel" placeholder="Es. +393331234567" autocomplete="tel" />
+    </div>
+
     <button id="signupBtn" class="btn">Registrati</button>
     <div class="muted">Hai già un account? <a href="login.html" class="link">Accedi</a></div>
     <div id="error" class="error"></div>
@@ -124,13 +129,40 @@
       const email = document.getElementById("email").value.trim();
       const pass  = document.getElementById("password").value;
       const uname = document.getElementById("username").value.trim();
+      const phoneRaw = document.getElementById("phone").value.trim();
+      const phone = normalizePhone(phoneRaw);
       if(!email || !pass || !uname) return showErr("Completa tutti i campi.");
       try{
+        // se presente, verifica univocità telefono tramite indice /byPhone/<num>
+        if (phone) {
+          const phoneSnap = await db.ref("byPhone/"+phone).once("value");
+          if (phoneSnap.exists()) { return showErr("Numero di telefono già registrato."); }
+        }
+
         const cred = await auth.createUserWithEmailAndPassword(email, pass);
-        await db.ref("users/"+cred.user.uid+"/profile").set({ email, name: uname });
+        const uid = cred.user.uid;
+        await db.ref("users/"+uid+"/profile").set({ email, phone: phone || null, name: uname });
+        // indici rapidi per lookup
+        const updates = {};
+        updates["byEmail/"+email.toLowerCase()] = uid;
+        if (phone) updates["byPhone/"+phone] = uid;
+        await db.ref().update(updates);
         location.replace('index.html');
       }catch(e){ showErr(mapErr(e)); }
     });
+
+    // Normalizza numeri: rimuove spazi/separatori, mantiene + e cifre, toUpper non necessario
+    function normalizePhone(input){
+      if (!input) return "";
+      const trimmed = input.replace(/\s+/g, "");
+      // Consenti + all'inizio, poi cifre
+      const m = trimmed.match(/^\+?[0-9]{6,}$/);
+      if (!m) return ""; // se non valido, non salviamo
+      // Rimuovi zeri iniziali non significativi se presente +?
+      // Manteniamo il '+' se fornito per distinguere internazionale
+      if (trimmed.startsWith('+')) return trimmed;
+      return trimmed; // altrimenti ritorna solo cifre
+    }
 
     function mapErr(e){
       const c = e?.code || "";

@@ -164,6 +164,11 @@
       <div id="email" class="readonly"></div>
     </div>
 
+    <div class="field">
+      <div class="label">Telefono</div>
+      <input id="phone" class="input" type="tel" placeholder="Es. +393331234567" />
+    </div>
+
     <div class="btn-row">
       <button id="changePassBtn" class="btn"><i data-lucide="lock"></i>Cambia Password</button>
       <button id="saveBtn" class="btn"><i data-lucide="save"></i>Salva</button>
@@ -198,7 +203,7 @@
     });
 
     const auth = firebase.auth(), db = firebase.database();
-    const username = document.getElementById("username"), email = document.getElementById("email");
+    const username = document.getElementById("username"), email = document.getElementById("email"), phone = document.getElementById("phone");
 
     const modalBg = document.getElementById("modalBg");
     const newPassword = document.getElementById("newPassword");
@@ -210,14 +215,41 @@
 
       email.textContent = user.email || "";
 
-      db.ref("users/"+user.uid+"/profile/name").on("value", snap => {
-        username.value = snap.exists() ? snap.val() : "";
+      db.ref("users/"+user.uid+"/profile").on("value", snap => {
+        const profile = snap.val() || {};
+        username.value = profile.name || "";
+        phone.value = profile.phone || "";
       });
 
-      document.getElementById("saveBtn").onclick = () => {
-        const val = username.value.trim();
-        db.ref("users/" + user.uid + "/profile/name").set(val || "Utente");
-        alert("Nome utente salvato!");
+      document.getElementById("saveBtn").onclick = async () => {
+        const val = username.value.trim() || "Utente";
+        const phoneRaw = phone.value.trim();
+        const norm = normalizePhone(phoneRaw);
+        try {
+          // controllo univocità solo se valorizzato
+          if (norm) {
+            const m = await db.ref('byPhone/'+norm).once('value');
+            const existingUid = m.val();
+            if (existingUid && existingUid !== user.uid) {
+              alert('Numero già in uso da un altro account.');
+              return;
+            }
+          }
+
+          // leggi phone precedente per pulire indice se necessario
+          const prevSnap = await db.ref('users/'+user.uid+'/profile/phone').once('value');
+          const prev = prevSnap.val();
+
+          await db.ref("users/" + user.uid + "/profile").update({ name: val, phone: norm || null });
+
+          const updates = {};
+          // set nuovo indice
+          if (norm) updates['byPhone/'+norm] = user.uid;
+          // rimuovi vecchio indice se cambiato
+          if (prev && prev !== norm) updates['byPhone/'+prev] = null;
+          await db.ref().update(updates);
+          alert("Profilo salvato!");
+        } catch(err){ alert('Errore salvataggio: '+ err.message); }
       };
 
       // Cambio password
@@ -246,6 +278,15 @@
       // Eliminazione account
       document.getElementById("deleteBtn").onclick = async () => {
         if(confirm("Sei sicuro di voler eliminare l'account?")){
+          // pulizia indici email/phone
+          try {
+            const ps = await db.ref('users/'+user.uid+'/profile').once('value');
+            const p = ps.val() || {};
+            const updates = {};
+            if (p.email) updates['byEmail/'+String(p.email).toLowerCase()] = null;
+            if (p.phone) updates['byPhone/'+p.phone] = null;
+            await db.ref().update(updates);
+          } catch(_){}
           await db.ref("users/" + user.uid).remove();
           await user.delete();
           alert("Account eliminato!");
@@ -255,6 +296,15 @@
     });
 
     lucide.createIcons();
+
+    function normalizePhone(input){
+      if (!input) return "";
+      const trimmed = String(input).replace(/\s+/g, "");
+      const m = trimmed.match(/^\+?[0-9]{6,}$/);
+      if (!m) return "";
+      if (trimmed.startsWith('+')) return trimmed;
+      return trimmed;
+    }
   </script>
 </body>
 </html>

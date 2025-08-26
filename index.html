@@ -679,38 +679,42 @@
     }
 
     function deriveSecondary(person){
-      // Prova a mostrare la prima email, altrimenti tutte le email con virgola
+      // Mostra la prima email se presente, altrimenti il primo telefono
       try {
         const emails = (person.emailAddresses || []).map(e => e.value).filter(Boolean);
-        if(emails.length === 1) return emails[0];
-        if(emails.length > 1) return emails.join(", ");
+        if(emails.length >= 1) return emails[0];
       } catch(e){ /* ignore */ }
-      return "Nessun email";
+      try {
+        const phones = (person.phoneNumbers || []).map(p => p.value).filter(Boolean);
+        if(phones.length >= 1) return phones[0];
+      } catch(e){ /* ignore */ }
+      return "Nessun contatto";
     }
 
-    /**
-     * Cerca nel DB un utente registrato che abbia email tra quelli del person.
-     * Restituisce UID o null.
-     * (Hai detto che non usi numeri di telefono — qui usiamo SOLO email)
-     */
+    // Cerca utente per email o telefono, usando gli indici /byEmail e /byPhone
     async function findUserUidByPerson(person){
       const emails = (person.emailAddresses || []).map(e => (e.value||'').toLowerCase().trim()).filter(Boolean);
-      if(!emails.length) return null;
-
-      // Leggiamo l'intero nodo users e facciamo matching per campo profile.email
-      // Nota: per DB grandi è consigliato creare /byEmail/<email> => uid
+      const phones = (person.phoneNumbers || []).map(p => normalizePhone(p.value||'')).filter(Boolean);
       try {
-        const snap = await db.ref("users").once("value");
-        const users = snap.val() || {};
-        for(const uid in users){
-          const profile = users[uid].profile || {};
-          const pEmail = (profile.email || "").toLowerCase().trim();
-          if(pEmail && emails.includes(pEmail)) return uid;
+        for (const em of emails){
+          const snap = await db.ref('byEmail/'+em).once('value');
+          if (snap.exists()) return snap.val();
         }
-      } catch(e){
-        console.warn("Errore findUserUidByPerson:", e);
-      }
+        for (const ph of phones){
+          const snap = await db.ref('byPhone/'+ph).once('value');
+          if (snap.exists()) return snap.val();
+        }
+      } catch(e){ console.warn('Errore findUserUidByPerson:', e); }
       return null;
+    }
+
+    function normalizePhone(input){
+      if (!input) return "";
+      const trimmed = String(input).replace(/\s+/g, "");
+      const m = trimmed.match(/^\+?[0-9]{6,}$/);
+      if (!m) return "";
+      if (trimmed.startsWith('+')) return trimmed;
+      return trimmed;
     }
 
     // Fetch & render con People API (richiede gapi.client *e* token impostato)
@@ -969,7 +973,7 @@
       - I messaggi in console:
         "Cross-Origin-Opener-Policy policy would block the window.opener call."
         provengono dallo script Google (popup). SONO INFORMAZIONI NON BLOCCANTI.
-        Per rimuoverli servirebbe impostare header COOP/COEP sul server che serve la pagina;
+        Per rimuoverli serviraebbe impostare header COOP/COEP sul server che serve la pagina;
         non è una correzione fatta via frontend.
 
       - Se dopo aver premuto "Consenti e Carica" in console vedi il dump dei "connections"

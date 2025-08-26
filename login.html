@@ -54,8 +54,8 @@
     <div class="title">Interlinked</div>
 
     <div class="field">
-      <label for="email">E-mail</label>
-      <input id="email" type="email" autocomplete="email" />
+      <label for="identifier">E-mail o Telefono</label>
+      <input id="identifier" type="text" placeholder="es. mario@esempio.com o +39333..." autocomplete="email tel" />
     </div>
 
     <div class="field">
@@ -128,13 +128,15 @@
       });
     })();
 
-    // Login con email e password
+    // Login con email O telefono e password
     $("#emailLogin").addEventListener("click", async ()=>{
       showErr(""); showOk("");
-      const email = $("#email").value.trim();
+      const identifier = $("#identifier").value.trim();
       const pass  = $("#password").value;
-      if(!email || !pass) return showErr("Inserisci e-mail e password.");
+      if(!identifier || !pass) return showErr("Inserisci e-mail/telefono e password.");
       try {
+        const { email } = await resolveIdentifierToEmail(identifier);
+        if (!email) throw new Error("auth/user-not-found");
         await auth.signInWithEmailAndPassword(email, pass);
         location.replace('index.html');
       } catch(e) {
@@ -147,7 +149,21 @@
       showErr(""); showOk("");
       try {
         const provider = new firebase.auth.GoogleAuthProvider();
-        await auth.signInWithPopup(provider);
+        const result = await auth.signInWithPopup(provider);
+        const user = result.user;
+        // Assicura profilo e indici
+        try {
+          const uid = user.uid;
+          const email = (user.email || '').toLowerCase();
+          const name = user.displayName || 'Utente';
+          const profRef = firebase.database().ref('users/'+uid+'/profile');
+          const snap = await profRef.once('value');
+          const existing = snap.val() || {};
+          await profRef.update({ email: email || existing.email || null, name: existing.name || name });
+          const updates = {};
+          if (email) updates['byEmail/'+email] = uid;
+          await firebase.database().ref().update(updates);
+        } catch(_e) { /* ignore */ }
         location.replace('index.html');
       } catch(e) {
         showErr(mapErr(e));
@@ -176,6 +192,44 @@
       if (c.includes("auth/popup-closed-by-user")) return "Accesso annullato.";
       // return "Errore: " + (e?.message || e);
       return "Errore, riprova!";
+    }
+
+    // Risolve un identificativo generico (email o telefono) in un'email per Firebase Auth
+    async function resolveIdentifierToEmail(identifier){
+      const normPhone = normalizePhone(identifier.trim());
+      if (isValidEmail(identifier)) {
+        return { email: identifier.toLowerCase() };
+      }
+      if (normPhone) {
+        try {
+          const snap = await firebase.database().ref('byPhone/'+normPhone).once('value');
+          const uid = snap.val();
+          if (!uid) return { email: null };
+          const prof = await firebase.database().ref('users/'+uid+'/profile/email').once('value');
+          const email = prof.val() || null;
+          return { email: email ? String(email).toLowerCase() : null };
+        } catch(_){ return { email: null }; }
+      }
+      // ultimo tentativo: mappa byEmail
+      try {
+        const snap = await firebase.database().ref('byEmail/'+identifier.toLowerCase()).once('value');
+        const uid = snap.val();
+        if (!uid) return { email: null };
+        const prof = await firebase.database().ref('users/'+uid+'/profile/email').once('value');
+        return { email: prof.val() ? String(prof.val()).toLowerCase() : null };
+      } catch(_){ return { email: null }; }
+    }
+
+    function isValidEmail(s){
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+    }
+    function normalizePhone(input){
+      if (!input) return "";
+      const trimmed = input.replace(/\s+/g, "");
+      const m = trimmed.match(/^\+?[0-9]{6,}$/);
+      if (!m) return "";
+      if (trimmed.startsWith('+')) return trimmed;
+      return trimmed;
     }
   </script>
 </body>
