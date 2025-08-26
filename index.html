@@ -243,6 +243,16 @@
       .consent-box { flex-direction:column; align-items:flex-start; }
       .consent-actions { width:100%; justify-content:flex-end; }
     }
+    /* Themed modal + toast */
+    .ui-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100}
+    .ui-modal{background:#141a2a;border:1px solid var(--border);border-radius:14px;padding:16px;max-width:420px;width:90%;box-shadow:0 16px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:12px}
+    .ui-modal h3{margin:0;color:var(--text);font-size:1rem}
+    .ui-modal p{margin:0;color:var(--text-muted);font-size:.95rem}
+    .ui-actions{display:flex;gap:8px;justify-content:flex-end}
+    .ui-btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-hover);color:var(--text);cursor:pointer}
+    .ui-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .ui-input{width:100%;padding:10px;border-radius:10px;border:1px solid var(--border);background:#0b1220;color:var(--text)}
+    .toast{position:fixed;right:14px;bottom:14px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:12px;padding:10px 12px;z-index:120;display:none}
   </style>
 </head>
 <body>
@@ -259,7 +269,10 @@
       </div>
     </div>
 
-    <div id="requestsBox" class="requests" style="display:none"></div>
+    <div id="requestsBox" class="requests" style="display:none">
+      <div class="section-title">Richieste - <span id="requestsCount">0</span></div>
+      <div id="requestsList"></div>
+    </div>
 
     <div class="section-title">Amici - <span id="friendsCount">0</span></div>
     <div id="contacts" class="contacts"></div>
@@ -282,6 +295,20 @@
     <div id="suggestedStatus" class="status-text">Non caricati</div>
     <div id="suggestedBox" class="suggested"></div>
   </div>
+
+  <!-- UI Modal / Toast -->
+  <div id="uiModalBg" class="ui-modal-bg" role="dialog" aria-modal="true">
+    <div class="ui-modal">
+      <h3 id="uiTitle">Titolo</h3>
+      <p id="uiMessage">Messaggio</p>
+      <input id="uiInput" class="ui-input" style="display:none" />
+      <div class="ui-actions">
+        <button id="uiCancel" class="ui-btn">Annulla</button>
+        <button id="uiOk" class="ui-btn primary">OK</button>
+      </div>
+    </div>
+  </div>
+  <div id="uiToast" class="toast"></div>
 
   <!-- Firebase compat libraries -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -317,6 +344,8 @@
     const menu = $("#menu");
     const contactsEl = $("#contacts");
     const reqBox = $("#requestsBox");
+    const reqList = $("#requestsList");
+    const reqCountEl = $("#requestsCount");
     const suggestedBox = $("#suggestedBox");
     const suggestedStatus = $("#suggestedStatus");
     const consentBox = $("#consentBox");
@@ -330,18 +359,17 @@
     // Menu actions
     $("#logout").addEventListener("click", async ()=>{ await auth.signOut(); location.replace('login.html'); });
     $("#profile").addEventListener("click", ()=> location.href="profile.html");
-    $("#shareUid").addEventListener("click", ()=> {
-      if(!currentUid) return alert("Utente non caricato");
+    $("#shareUid").addEventListener("click", async ()=> {
+      if(!currentUid) return showToast("Utente non caricato");
       const link = `${location.origin}${location.pathname}?add=${currentUid}`;
-      if(navigator.share){
-        navigator.share({
-          title: "Interlinked",
-          text: "Aggiungimi su Interlinked!",
-          url: link
-        }).catch(()=>{});
-      } else {
-        prompt("Copia questo link:", link);
-      }
+      try{
+        if(navigator.share){ await navigator.share({ title:"Interlinked", text:"Aggiungimi su Interlinked!", url:link }); }
+        else {
+          await appPrompt({ title:"Condividi UID", message:"Copia questo link", value:link });
+          await navigator.clipboard.writeText(link).catch(()=>{});
+          showToast("Copiato negli appunti");
+        }
+      }catch(_){ }
     });
 
     // ---------- AUTH & STATE ----------
@@ -368,12 +396,17 @@
       const addUid = params.get("add");
       if(addUid && addUid !== currentUid){
         const room = roomFor(currentUid, addUid);
-        // aggiunge contatto locale (solo lato mittente) se non presente
-        await ensureLocalContactOnce(currentUid, { name: "Nuovo Contatto", room });
+        // aggiunge contatto locale (solo lato mittente) usando il nome profilo dell'altro
+        let otherName = "Contatto";
+        try {
+          const nameSnap = await db.ref("users/"+addUid+"/profile/name").once("value");
+          otherName = nameSnap.exists()? nameSnap.val() : "Contatto";
+        } catch(_){ }
+        await ensureLocalContactOnce(currentUid, { name: otherName, room });
         // invia richiesta all'altro (controlla duplicati)
         const res = await sendFriendRequestIfNeeded(addUid);
-        if(res.ok) alert("Richiesta inviata automaticamente!");
-        else alert("Richiesta non inviata: " + (res.reason || "unknown"));
+        if(res.ok) showToast("Richiesta inviata automaticamente!");
+        else showToast("Richiesta non inviata: " + (res.reason || "unknown"));
         history.replaceState({}, document.title, location.pathname);
       }
 
@@ -446,17 +479,16 @@
       friendsCountEl.textContent = count;
     }
 
-    window.renameContact = (id, name) => {
-      const newName = prompt("Nuovo nome:", name);
-      if(newName && newName.trim()){
-        db.ref("users/"+currentUid+"/contacts/"+id).update({ name: newName.trim() });
+    window.renameContact = async (id, name) => {
+      const val = await appPrompt({ title:"Rinomina", message:"Nuovo nome", value:name||"" });
+      if(val && val.trim()){
+        db.ref("users/"+currentUid+"/contacts/"+id).update({ name: val.trim() });
       }
     };
 
-    window.deleteContact = (id, name) => {
-      if(confirm("Eliminare " + name + " ?")){
-        db.ref("users/"+currentUid+"/contacts/"+id).remove();
-      }
+    window.deleteContact = async (id, name) => {
+      const ok = await appConfirm({ title:"Elimina", message:"Eliminare "+ (name||"contatto") +"?" });
+      if(ok){ db.ref("users/"+currentUid+"/contacts/"+id).remove(); }
     };
 
     // ---------- RICHIESTE ----------
@@ -464,9 +496,19 @@
       const d = document.createElement("div");
       d.className = "req";
       d.dataset.id = id;
-      d.innerHTML = `<span>${escapeHtml(r.fromName || "Utente")}</span>`;
-      const acc = document.createElement("button"); acc.className="btn"; acc.innerHTML = '<i data-lucide="check"></i> Accetta';
-      const rej = document.createElement("button"); rej.className="btn"; rej.innerHTML = '<i data-lucide="x"></i> Rifiuta';
+      const initial = (r.fromName||'U').charAt(0).toUpperCase();
+      d.innerHTML = `
+        <div class="contact-info" style="cursor:default">
+          <div class="avatar">${escapeHtml(initial)}</div>
+          <div>
+            <div class="name">${escapeHtml(r.fromName || 'Utente')}</div>
+            <div class="roomtag">Richiesta di amicizia</div>
+          </div>
+        </div>
+      `;
+      const actions = document.createElement('div'); actions.style.display='flex'; actions.style.gap='8px'; actions.style.marginLeft='auto';
+      const acc = document.createElement("button"); acc.className="btn"; acc.style.padding='6px 10px'; acc.innerHTML = '<i data-lucide="check"></i>';
+      const rej = document.createElement("button"); rej.className="btn"; rej.style.padding='6px 10px'; rej.innerHTML = '<i data-lucide="x"></i>';
 
       // Accept handler (idempotent)
       acc.addEventListener("click", async ()=>{
@@ -479,7 +521,8 @@
           const newRoom = r.room || roomFor(currentUid, fromUid || '');
           // verifiche: se già esiste il contatto con questa stanza, non duplicare
           const alreadyHere = await userHasContactWithRoom(currentUid, newRoom);
-          const alreadyThere = fromUid ? await userHasContactWithRoom(fromUid, newRoom) : false;
+          // non leggere dati di altri utenti per evitare errori di permesso
+          const alreadyThere = false;
 
           if(alreadyHere && alreadyThere){
             // rimuovi la richiesta (se ancora presente) — era già accettata in precedenza
@@ -493,9 +536,8 @@
           if(!alreadyHere){
             await db.ref("users/"+currentUid+"/contacts").push({ name: r.fromName || "Contatto", room: newRoom });
           }
-          if(fromUid && !alreadyThere){
-            await db.ref("users/"+fromUid+"/contacts").push({ name: currentName || "Contatto", room: newRoom });
-          }
+          await updateLocalContactNameIfDefault(currentUid, newRoom, r.fromName || 'Contatto');
+          // Non scriviamo nei contatti dell'altro utente (vietato dalle regole)
 
           // rimuovi la richiesta (sempre)
           await db.ref("users/"+currentUid+"/requests/"+id).remove();
@@ -508,6 +550,7 @@
           acc.style.opacity = "1";
         } finally {
           lucide.createIcons();
+          updateRequestsCount();
         }
       });
 
@@ -523,24 +566,29 @@
         }
       });
 
-      d.append(acc, rej);
+      actions.append(acc, rej);
+      d.append(actions);
       return d;
     }
 
+    function updateRequestsCount(){ reqCountEl.textContent = reqList.children.length; }
+
     function initRequests(){
-      reqBox.innerHTML = "";
+      reqList.innerHTML = "";
       if(requestsRef) requestsRef.off();
       requestsRef = db.ref("users/"+currentUid+"/requests");
       requestsRef.on("child_added", s=>{
         reqBox.style.display = "block";
         const node = renderRequest(s.key, s.val());
-        reqBox.appendChild(node);
+        reqList.appendChild(node);
         lucide.createIcons();
+        updateRequestsCount();
       });
       requestsRef.on("child_removed", s=>{
-        const el = reqBox.querySelector(`[data-id="${s.key}"]`);
+        const el = reqList.querySelector(`[data-id="${s.key}"]`);
         if(el) el.remove();
-        if(!reqBox.children.length) reqBox.style.display = "none";
+        updateRequestsCount();
+        if(!reqList.children.length) reqBox.style.display = "none";
       });
     }
 
@@ -554,6 +602,8 @@
     // controlla se un utente ha già un contatto con la stessa room
     async function userHasContactWithRoom(uid, room){
       if(!uid || !room) return false;
+      // Non leggere contatti di altri utenti (vietato dalle regole)
+      if (uid !== currentUid) return false;
       try {
         const snap = await db.ref("users/"+uid+"/contacts").once("value");
         const c = snap.val() || {};
@@ -581,9 +631,30 @@
       }
     }
 
+    // Aggiorna il nome del contatto locale se è un placeholder
+    async function updateLocalContactNameIfDefault(uid, room, newName){
+      if(!uid || !room || !newName) return;
+      try{
+        const snap = await db.ref("users/"+uid+"/contacts").once("value");
+        const c = snap.val() || {};
+        const placeholders = { 'Nuovo Contatto':1, 'Contatto':1, 'Utente':1, '':1 };
+        for(const k in c){
+          const it = c[k];
+          if(it && it.room === room){
+            if(placeholders[it.name || '']){
+              await db.ref("users/"+uid+"/contacts/"+k).update({ name: newName });
+            }
+            break;
+          }
+        }
+      }catch(e){ console.warn('Errore updateLocalContactNameIfDefault', e); }
+    }
+
     // verifica se su otherUid esiste già una richiesta proveniente da fromUid
     async function otherHasPendingRequestFrom(otherUid, fromUid){
       if(!otherUid || !fromUid) return false;
+      // Non possiamo leggere le richieste dell'altro utente; assumiamo che non ci sia richiesta duplicata
+      if (otherUid !== currentUid) return false;
       try {
         const snap = await db.ref("users/"+otherUid+"/requests").once("value");
         const r = snap.val() || {};
@@ -966,6 +1037,35 @@
       if(contactsRef) contactsRef.off();
       if(requestsRef) requestsRef.off();
     });
+
+    // ---------- Themed UI helpers ----------
+    function showToast(msg){
+      const t = document.getElementById('uiToast');
+      if(!t) return;
+      t.textContent = msg;
+      t.style.display = 'block';
+      clearTimeout(t.__to);
+      t.__to = setTimeout(()=>{ t.style.display='none'; }, 2200);
+    }
+    function appDialog({title,message,showInput,value,okText='OK',cancelText='Annulla'}){
+      return new Promise(res=>{
+        const bg = document.getElementById('uiModalBg');
+        const ti = document.getElementById('uiTitle');
+        const msg = document.getElementById('uiMessage');
+        const inp = document.getElementById('uiInput');
+        const ok = document.getElementById('uiOk');
+        const cc = document.getElementById('uiCancel');
+        ti.textContent = title||''; msg.textContent = message||'';
+        inp.style.display = showInput? 'block':'none'; inp.value = value||'';
+        ok.textContent = okText; cc.textContent = cancelText;
+        function close(v){ bg.style.display='none'; ok.onclick=null; cc.onclick=null; res(v); }
+        ok.onclick=()=> close(showInput? inp.value : true);
+        cc.onclick=()=> close(showInput? null : false);
+        bg.style.display='flex'; inp.focus();
+      });
+    }
+    function appConfirm(opts){ return appDialog({ ...opts, showInput:false }); }
+    function appPrompt(opts){ return appDialog({ ...opts, showInput:true }); }
 
     /*
       NOTE TECNICHE E SUGGERIMENTI DI DEBUG:

@@ -20,13 +20,23 @@
     .presence-on { background:#22c55e !important; }
     .kebab { font-size:22px; line-height:0; color:white; }
     .menu { position:relative; justify-self:end; }
-    .menu .panel { position:absolute; right:0; top:44px; min-width:200px; padding:10px; border:1px solid #334155;
-      background:#0b1220; border-radius:12px; display:none; z-index:10; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+    .menu .panel { position:absolute; right:0; top:44px; min-width:260px; padding:12px; border:1px solid #334155;
+      background:#0b1220; border-radius:14px; display:none; z-index:10; box-shadow:0 14px 38px rgba(0,0,0,.45); }
     .menu.open .panel { display:block; }
-    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; padding:8px 0; }
     input[type="color"] { inline-size:46px; block-size:32px; padding:0; border:none; background:transparent; }
     .controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex-shrink:0; }
     .pill { padding:6px 10px; border:1px solid #334155; border-radius:999px; background:#0b1220; display:inline-flex; gap:6px; align-items:center; }
+    .small { font-size:12px; color:#a1a1aa; }
+    .file-btn { display:grid; place-items:center; width:36px; height:36px; border:1px solid #334155; border-radius:10px; background:#10192c; cursor:pointer; color:#cbd5e1; }
+    .file-btn:hover { background:#13223a; color:#ffffff; }
+    .file-btn svg { width:18px; height:18px; }
+    /* Modal/Toast */
+    .ui-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100}
+    .ui-modal{background:#141a2a;border:1px solid #334155;border-radius:14px;padding:16px;max-width:420px;width:90%;box-shadow:0 16px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:12px}
+    .ui-actions{display:flex;gap:8px;justify-content:flex-end}
+    .ui-btn{padding:10px 14px;border-radius:10px;border:1px solid #334155;background:#10192c;color:#e5e7eb;cursor:pointer}
+    .ui-btn.primary{background:#3b82f6;border-color:#3b82f6;color:#fff}
     .ok { color:#34d399; } .warn { color:#fbbf24; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
     .btn { padding:8px 12px; border-radius:10px; border:1px solid #334155; background:#0b1220; color:#e5e7eb; cursor:pointer; }
@@ -51,6 +61,23 @@
             <input type="range" id="radius" min="20" max="200" step="4" value="90"></label></div>
           <div class="row" style="margin-top:8px"><label>Durata scia (ms)
             <input type="range" id="life" min="400" max="4000" step="100" value="2000"></label></div>
+          <hr style="border:none;border-top:1px solid #334155;margin:6px 0">
+          <div class="row"><span>Suono interazione</span>
+            <label class="small"><input type="checkbox" id="soundEnabled" checked> Attivo</label>
+          </div>
+          <div class="row"><label>Volume
+            <input type="range" id="soundVol" min="0" max="1" step="0.05" value="0.4"></label></div>
+          <div class="row"><span>Carica suono (mp3 ≤ 5s)</span>
+            <input type="file" id="soundFile" accept="audio/mpeg" style="display:none">
+            <button id="fileBtn" class="file-btn" title="Carica">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 5 17 10"/>
+                <line x1="12" y1="5" x2="12" y2="20"/>
+              </svg>
+            </button>
+          </div>
+          <div class="row"><button class="btn" id="resetBtn">Reset</button></div>
         </div>
       </div>
     </div>
@@ -117,6 +144,16 @@
     let SPACING = 18;
     let RADIUS  = 90;
     let LIFE_MS = 2000;
+
+    // Sound state
+    let SOUND_ENABLED = true;
+    let SOUND_VOLUME = 0.4;
+    let audioCtx = null;
+    let defaultBuffer = null; // default gentle click/chime
+    let customBuffer = null;
+    let lastSoundAt = 0;
+    const SOUND_THROTTLE_MS = 80; // avoid overwhelming clicks
+    let audioPrimed = false;
 
     const CLIENT = 'c_' + rndId();
     const ROOM = (location.hash && location.hash.slice(1)) || ('room_' + rndId());
@@ -185,6 +222,65 @@
       }
     }
 
+    // ===== Sound helpers =====
+    function ensureAudio(){
+      if (!audioPrimed) return false;
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(()=>{});
+      }
+      return true;
+    }
+    function playSound(){
+      try{
+        if (!SOUND_ENABLED || !audioPrimed) return;
+        const nowMs = performance.now();
+        if (nowMs - lastSoundAt < SOUND_THROTTLE_MS) return;
+        if (!ensureAudio() || !audioCtx) return;
+        const buffer = (customBuffer || defaultBuffer);
+        if (!buffer) return;
+        lastSoundAt = nowMs;
+        const src = audioCtx.createBufferSource();
+        src.buffer = buffer;
+        const gain = audioCtx.createGain();
+        gain.gain.value = SOUND_VOLUME;
+        src.connect(gain).connect(audioCtx.destination);
+        src.start();
+      }catch(_){ /* never block interaction */ }
+    }
+    async function loadDefaultTone(){
+      try{
+        if (!ensureAudio()) return;
+        // Generate a deeper, relaxing chime: 220Hz + 440Hz gentle attack and long decay (~350ms)
+        const sr = audioCtx.sampleRate;
+        const len = Math.floor(sr * 0.1); // longer ~600ms
+        const buf = audioCtx.createBuffer(1, len, sr);
+        const data = buf.getChannelData(0);
+        const f1 = 80, f2 = 160, f3 = 90; // deeper and slight detune
+        let lastNoise = 0;
+        for (let i=0;i<len;i++){
+          const t = i / sr;
+          const attack = Math.min(1, t*3); // smooth attack
+          const decay = Math.exp(-t*1.6);  // long decay
+          // multi-sine + lowpassed/brownish noise for brrrr
+          const tone = (Math.sin(2*Math.PI*f1*t) * 0.65 + Math.sin(2*Math.PI*f2*t) * 0.25 + Math.sin(2*Math.PI*f3*t) * 0.1);
+          // Brown-ish noise
+          const white = Math.random()*2-1;
+          lastNoise = (lastNoise + (0.02*white)) / 1.02;
+          const noise = lastNoise * 0.2 * Math.exp(-t*6);
+          const trem = 1 + 0.03*Math.sin(2*Math.PI*7*t);
+          const damp = attack * decay * trem;
+          data[i] = (tone + noise) * damp * 0.7;
+        }
+        defaultBuffer = buf;
+      }catch(e){ /* ignore */ }
+    }
+    async function fileToBuffer(file){
+      ensureAudio();
+      const array = await file.arrayBuffer();
+      return await audioCtx.decodeAudioData(array);
+    }
+
     /************ RENDER ************/
     let lastTime = performance.now();
     function drawFrame(){
@@ -220,10 +316,13 @@
     }
     function sendHover(x,y){
       applyBrush(x,y,COLOR,RADIUS);
-      if (RT.enabled) {
-        RT.db.ref('rooms/'+ROOM+'/events').push({
-          type:'hover', payload:{x,y,r:RADIUS,c: COLOR}, client: CLIENT, ts: Date.now()
-        });
+      playSound();
+      if (RT.enabled && RT.db) {
+        try{
+          RT.db.ref('rooms/'+ROOM+'/events').push({
+            type:'hover', payload:{x,y,r:RADIUS,c: COLOR}, client: CLIENT, ts: Date.now()
+          });
+        }catch(_){ /* ignore */ }
       }
     }
     const menuEl = $('#menu');
@@ -237,9 +336,57 @@
     $('#spacing').addEventListener('input', e=>{ SPACING = parseInt(e.target.value,10); buildZone(); });
     $('#radius').addEventListener('input', e=> RADIUS = parseInt(e.target.value,10));
     $('#life').addEventListener('input', e=> LIFE_MS = parseInt(e.target.value,10));
+    // Sound controls
+    function primeAudio(){
+      try{
+        audioPrimed = true;
+        ensureAudio();
+        loadDefaultTone();
+      }catch(_){ }
+    }
+    document.getElementById('soundEnabled').addEventListener('change', e=>{
+      SOUND_ENABLED = !!e.target.checked;
+      if (SOUND_ENABLED) { primeAudio(); }
+      try{ localStorage.setItem('sound_enabled', SOUND_ENABLED? '1':'0'); }catch(_){ }
+    });
+    document.getElementById('soundVol').addEventListener('input', e=>{
+      SOUND_VOLUME = parseFloat(e.target.value);
+      try{ localStorage.setItem('sound_vol', String(SOUND_VOLUME)); }catch(_){ }
+    });
+    document.getElementById('fileBtn').addEventListener('click', ()=>{ primeAudio(); document.getElementById('soundFile').click(); });
+    document.getElementById('soundFile').addEventListener('change', async e=>{
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      // Simple validation: allow only mp3 and <= 5s
+      if (!/mp3$/i.test(file.name)) { alert('Carica un file MP3.'); return; }
+      try{
+        const buf = await fileToBuffer(file);
+        if (buf.duration > 5.0) { alert('Il suono deve essere lungo massimo 5 secondi.'); return; }
+        customBuffer = buf;
+        try{ localStorage.setItem('sound_custom_name', file.name); }catch(_){ }
+        alert('Suono personalizzato caricato.');
+      }catch(err){ alert('Impossibile leggere l\'audio.'); }
+    });
+    document.getElementById('resetBtn').addEventListener('click', async ()=>{
+      const ok = await appConfirmRoom({ title:'Reset', message:'Ripristinare impostazioni suono e rendering?' });
+      if (!ok) return;
+      COLOR = '#00ffaa';
+      document.getElementById('color').value = COLOR;
+      document.getElementById('spacing').value = 18; SPACING = 18; buildZone();
+      document.getElementById('radius').value = 90; RADIUS = 90;
+      document.getElementById('life').value = 2000; LIFE_MS = 2000;
+      SOUND_ENABLED = true; document.getElementById('soundEnabled').checked = true;
+      SOUND_VOLUME = 0.4; document.getElementById('soundVol').value = '0.4';
+      customBuffer = null; document.getElementById('soundFile').value = '';
+      try{ localStorage.removeItem('sound_custom_name'); localStorage.setItem('sound_enabled','1'); localStorage.setItem('sound_vol','0.4'); }catch(_){ }
+      showToast('Impostazioni ripristinate');
+    });
 
     canvas.addEventListener('pointermove', (e)=>{ const p = toCanvasPos(e); sendHover(p.x, p.y); });
     canvas.addEventListener('touchmove', (e)=>{ const p = toCanvasPos(e); sendHover(p.x, p.y); }, {passive:true});
+    // On first gesture, unlock audio
+    canvas.addEventListener('pointerdown', primeAudio, { once:true });
+    canvas.addEventListener('touchstart', primeAudio, { once:true, passive:true });
     window.addEventListener('resize', resizeCanvas);
 
     /************ REALTIME ************/
@@ -257,7 +404,8 @@
         const dbi  = firebase.database();
         RT.db = dbi;
         const INIT_TS = Date.now();
-        dbi.ref('rooms/'+ROOM+'/events').on('child_added', snap=>{
+        const eventsRef = dbi.ref('rooms/'+ROOM+'/events');
+        eventsRef.on('child_added', snap=>{
           const ev = snap.val(); if (!ev) return;
           if (ev.client === CLIENT) return;
           // Ignore historical events from before we joined to prevent flash
@@ -266,6 +414,8 @@
             const p = ev.payload; applyBrush(p.x, p.y, p.c, p.r);
           }
         });
+        // Ensure events branch exists so writes don’t fail on missing parent (do not create child that could be rendered)
+        eventsRef.once('value', s=>{ if (!s.exists()) eventsRef.set({}); });
         setRt(true, 'stanza #'+ROOM);
       }catch(e){ console.error(e); setRt(false, 'errore init'); }
     }
@@ -306,6 +456,11 @@
             dot.setAttribute('title', 'Offline');
           }
         });
+        // also watch connection state to refresh heartbeat promptly
+        const connectedRef = firebase.database().ref('.info/connected');
+        connectedRef.on('value', (snap)=>{ if (snap.val() === true) { updateHeartbeat(); } });
+        // Write an initial heartbeat immediately after auth to ensure visibility
+        updateHeartbeat();
       }catch(e){ console.warn('presence error', e); }
     }
 
@@ -314,6 +469,28 @@
     requestAnimationFrame(drawFrame);
     initRealtime();
     initPresence();
+    // default tone will load after first gesture (primeAudio)
+
+    // Modal / Toast elements
+    const __ui = (()=>{
+      const bg = document.createElement('div');
+      bg.className = 'ui-modal-bg';
+      bg.innerHTML = '<div class="ui-modal"><h3 id="rtUiTitle">Conferma</h3><p id="rtUiMsg">Sei sicuro?</p><div class="ui-actions"><button id="rtUiCancel" class="ui-btn">Annulla</button><button id="rtUiOk" class="ui-btn primary">OK</button></div></div>';
+      document.body.appendChild(bg);
+      const toast = document.createElement('div'); toast.style.cssText='position:fixed;right:14px;bottom:14px;background:#111827;color:#e5e7eb;border:1px solid #374151;border-radius:12px;padding:10px 12px;z-index:120;display:none'; toast.id='rtToast'; document.body.appendChild(toast);
+      return { bg, title:()=>document.getElementById('rtUiTitle'), msg:()=>document.getElementById('rtUiMsg'), ok:()=>document.getElementById('rtUiOk'), cancel:()=>document.getElementById('rtUiCancel'), toast };
+    })();
+    function showToast(m){ const t=__ui.toast; t.textContent=m; t.style.display='block'; clearTimeout(t.__to); t.__to=setTimeout(()=>{ t.style.display='none'; }, 2200); }
+    function appConfirmRoom({title,message}){
+      return new Promise(res=>{
+        __ui.title().textContent = title||'Conferma';
+        __ui.msg().textContent = message||'';
+        function close(v){ __ui.bg.style.display='none'; __ui.ok().onclick=null; __ui.cancel().onclick=null; res(v); }
+        __ui.ok().onclick=()=> close(true);
+        __ui.cancel().onclick=()=> close(false);
+        __ui.bg.style.display='flex';
+      });
+    }
 
     // Periodic pruning of old events to keep DB small without deleting the room
     (function initPruning(){

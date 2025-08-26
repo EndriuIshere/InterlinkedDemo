@@ -186,6 +186,20 @@
     </div>
   </div>
 
+  <!-- Themed Modal / Toast -->
+  <div id="uiModalBg" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:100">
+    <div style="background:#1a1a23;border:1px solid #2c344a;border-radius:14px;padding:16px;max-width:420px;width:90%;display:flex;flex-direction:column;gap:12px;box-shadow:0 18px 42px rgba(0,0,0,.55)">
+      <div id="uiTitle" style="font-weight:700">Titolo</div>
+      <div id="uiMessage" style="opacity:.8"></div>
+      <input id="uiInput" style="display:none;padding:10px;border-radius:10px;border:1px solid #2c344a;background:#0f0f17;color:#e4e4e7" />
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button id="uiCancel" class="btn">Annulla</button>
+        <button id="uiOk" class="btn" style="background:#3b82f6;border-color:#3b82f6;color:#fff">OK</button>
+      </div>
+    </div>
+  </div>
+  <div id="uiToast" style="position:fixed;right:14px;bottom:14px;background:#111827;color:#e4e4e7;border:1px solid #374151;border-radius:12px;padding:10px 12px;z-index:120;display:none"></div>
+
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
@@ -248,7 +262,7 @@
           // rimuovi vecchio indice se cambiato
           if (prev && prev !== norm) updates['byPhone/'+prev] = null;
           await db.ref().update(updates);
-          alert("Profilo salvato!");
+          showToast("Profilo salvato!");
         } catch(err){ alert('Errore salvataggio: '+ err.message); }
       };
 
@@ -277,7 +291,8 @@
 
       // Eliminazione account
       document.getElementById("deleteBtn").onclick = async () => {
-        if(confirm("Sei sicuro di voler eliminare l'account?")){
+        const ok = await appConfirm({ title:'Elimina', message:'Sei sicuro di voler eliminare l\'account?' });
+        if(ok){
           // pulizia indici email/phone
           try {
             const ps = await db.ref('users/'+user.uid+'/profile').once('value');
@@ -289,13 +304,34 @@
           } catch(_){}
           await db.ref("users/" + user.uid).remove();
           await user.delete();
-          alert("Account eliminato!");
+          showToast("Account eliminato!");
           location.replace("signup.html");
         }
       };
     });
 
     lucide.createIcons();
+
+    // Themed dialog helpers
+    function appDialog({title,message,showInput,value,okText='OK',cancelText='Annulla'}){
+      return new Promise(res=>{
+        const bg = document.getElementById('uiModalBg');
+        const ti = document.getElementById('uiTitle');
+        const msg = document.getElementById('uiMessage');
+        const inp = document.getElementById('uiInput');
+        const ok = document.getElementById('uiOk');
+        const cc = document.getElementById('uiCancel');
+        ti.textContent = title||''; msg.textContent = message||'';
+        inp.style.display = showInput? 'block':'none'; inp.value = value||'';
+        ok.textContent = okText; cc.textContent = cancelText;
+        function close(v){ bg.style.display='none'; ok.onclick=null; cc.onclick=null; res(v); }
+        ok.onclick=()=> close(showInput? inp.value : true);
+        cc.onclick=()=> close(showInput? null : false);
+        bg.style.display='flex'; if (showInput) inp.focus();
+      });
+    }
+    function appConfirm(opts){ return appDialog({ ...opts, showInput:false }); }
+    function showToast(msg){ const t=document.getElementById('uiToast'); t.textContent=msg; t.style.display='block'; clearTimeout(t.__to); t.__to=setTimeout(()=>{ t.style.display='none'; }, 2200); }
 
     function normalizePhone(input){
       if (!input) return "";
