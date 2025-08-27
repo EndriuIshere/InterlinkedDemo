@@ -462,18 +462,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
+  <!-- Configuration -->
+  <script src="config.js"></script>
+  
   <script>
-    // === Config identica ===
-    window.FIREBASE_CONFIG = {
-      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
-      authDomain: "interlinked-demo.firebaseapp.com",
-      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
-      projectId: "interlinked-demo",
-      storageBucket: "interlinked-demo.firebasestorage.app",
-      messagingSenderId: "85117709871",
-      appId: "1:85117709871:web:a154569112f845e2bfe0da",
-      measurementId: "G-RBLX6ZQD01"
-    };
+    // === Config from environment ===
+    window.FIREBASE_CONFIG = window.appConfig.getFirebaseConfig();
     firebase.initializeApp(window.FIREBASE_CONFIG);
     const db = firebase.database();
     const auth = firebase.auth();
@@ -683,9 +677,9 @@
       playSound();
       if (RT.enabled && RT.db) {
         try{
-          RT.db.ref('rooms/'+ROOM+'/events').push({
-            type:'hover', payload:{x,y,r:RADIUS,c: COLOR}, client: CLIENT, ts: Date.now()
-          });
+        RT.db.ref('rooms/'+ROOM+'/events').push({
+          type:'hover', payload:{x,y,r:RADIUS,c: COLOR}, client: CLIENT, ts: Date.now()
+        });
         }catch(_){ /* ignore */ }
       }
     }

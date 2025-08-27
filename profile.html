@@ -360,17 +360,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <!-- Configuration -->
+  <script src="config.js"></script>
+  
   <script>
-    firebase.initializeApp({
-      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
-      authDomain: "interlinked-demo.firebaseapp.com",
-      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
-      projectId: "interlinked-demo",
-      storageBucket: "interlinked-demo.firebasestorage.app",
-      messagingSenderId: "85117709871",
-      appId: "1:85117709871:web:a154569112f845e2bfe0da",
-      measurementId: "G-RBLX6ZQD01"
-    });
+    // Initialize Firebase with config
+    firebase.initializeApp(window.appConfig.getFirebaseConfig());
 
     const auth = firebase.auth(), db = firebase.database();
     const username = document.getElementById("username"), email = document.getElementById("email"), phone = document.getElementById("phone");
@@ -476,7 +471,11 @@
             const ps = await db.ref('users/'+user.uid+'/profile').once('value');
             const p = ps.val() || {};
             const updates = {};
-            if (p.email) updates['byEmail/'+String(p.email).toLowerCase()] = null;
+            if (p.email) {
+           // Encode email to match the stored format
+           const emailKey = String(p.email).toLowerCase().replace(/\./g, '_');
+           updates['byEmail/'+emailKey] = null;
+         }
             if (p.phone) updates['byPhone/'+p.phone] = null;
             await db.ref().update(updates);
           } catch(_){}

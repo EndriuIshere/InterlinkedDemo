@@ -358,22 +358,17 @@
     <div id="error" class="error"></div>
   </div>
 
+  <!-- Configuration -->
+  <script src="config.js"></script>
+  
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <script>
-    firebase.initializeApp({
-      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
-      authDomain: "interlinked-demo.firebaseapp.com",
-      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
-      projectId: "interlinked-demo",
-      storageBucket: "interlinked-demo.firebasestorage.app",
-      messagingSenderId: "85117709871",
-      appId: "1:85117709871:web:a154569112f845e2bfe0da",
-      measurementId: "G-RBLX6ZQD01"
-    });
+    // Initialize Firebase with config
+    firebase.initializeApp(window.appConfig.getFirebaseConfig());
     const auth = firebase.auth();
     const db = firebase.database();
 
@@ -448,11 +443,13 @@
         const uid = cred.user.uid;
         await db.ref("users/"+uid+"/profile").set({ email, phone: phone || null, name: uname });
         
-        // indici rapidi per lookup
-        const updates = {};
-        updates["byEmail/"+email.toLowerCase()] = uid;
-        if (phone) updates["byPhone/"+phone] = uid;
-        await db.ref().update(updates);
+                 // indici rapidi per lookup
+         const updates = {};
+         // Encode email to make it safe for Firebase keys (replace . with _)
+         const emailKey = email.toLowerCase().replace(/\./g, '_');
+         updates["byEmail/"+emailKey] = uid;
+         if (phone) updates["byPhone/"+phone] = uid;
+         await db.ref().update(updates);
         
         location.replace('index.html');
       }catch(e){ 

@@ -405,23 +405,17 @@
     <div id="success" class="success"></div>
   </div>
 
+  <!-- Configuration -->
+  <script src="config.js"></script>
+  
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
   <script>
-    // Configurazione Firebase
-    firebase.initializeApp({
-      apiKey: "AIzaSyAd2Uv9xA36L49YPezEO1QpC6P7t9zHXto",
-      authDomain: "interlinked-demo.firebaseapp.com",
-      databaseURL: "https://interlinked-demo-default-rtdb.firebaseio.com",
-      projectId: "interlinked-demo",
-      storageBucket: "interlinked-demo.firebasestorage.app",
-      messagingSenderId: "85117709871",
-      appId: "1:85117709871:web:a154569112f845e2bfe0da",
-      measurementId: "G-RBLX6ZQD01"
-    });
+    // Initialize Firebase with config
+    firebase.initializeApp(window.appConfig.getFirebaseConfig());
     const auth = firebase.auth();
     const db = firebase.database();
 
@@ -523,6 +517,7 @@
               } catch(e2) {
                 console.warn('Errore cercando telefono:', e2);
               }
+
             }
           }
         }
@@ -552,7 +547,9 @@
           // Aggiorna il profilo e l'indice byEmail
           const updates = {};
           updates['users/'+user.uid+'/profile'] = { email, name };
-          updates['byEmail/'+email.toLowerCase()] = user.uid;
+          // Encode email to make it safe for Firebase keys (replace . with _)
+          const emailKey = email.toLowerCase().replace(/\./g, '_');
+          updates['byEmail/'+emailKey] = user.uid;
           
           try {
             await db.ref().update(updates);
@@ -613,3 +610,4 @@
   </script>
 </body>
 </html>
+
