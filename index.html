@@ -522,21 +522,11 @@
       if (!currentUid) return;
       
       const now = Date.now();
-      const updates = {};
       
-      // Use cached contacts if available
-      Object.keys(cachedContacts).forEach(contactId => {
-        const contact = cachedContacts[contactId];
-        if (contact && contact.room) {
-          updates[`presence/${contact.room}/${currentUid}/lastSeen`] = now;
-        }
+      // Simply update the user's own lastAccess timestamp
+      db.ref(`users/${currentUid}/lastAccess`).set(now).catch(e => {
+        console.warn('Errore aggiornando lastAccess:', e);
       });
-      
-      if (Object.keys(updates).length > 0) {
-        db.ref().update(updates).catch(e => {
-          console.warn('Errore aggiornando presence:', e);
-        });
-      }
     }
 
     function stopLastAccessTracking() {
@@ -644,51 +634,15 @@
       if (!otherUid) return;
       
       const lastAccessEl = contactElement.querySelector('.last-access');
-      const room = contactElement.dataset.room;
       
-      // Use the same approach as room system - store in a shared location
-      // We'll use the room's presence data instead of direct user access
-      const presenceRef = db.ref(`presence/${room}/${otherUid}`);
+      // For now, just show offline status since security rules prevent reading other users' data
+      // This can be enhanced later when security rules are properly configured
+      lastAccessEl.classList.remove('online', 'recent', 'offline');
+      lastAccessEl.classList.add('offline');
+      lastAccessEl.textContent = "Offline";
       
-      const updateLastAccessDisplay = (snapshot) => {
-        const data = snapshot.val();
-        let timestamp = null;
-        
-        if (data && data.lastSeen) {
-          timestamp = data.lastSeen;
-        }
-        
-        const formatted = formatLastAccess(timestamp);
-        lastAccessEl.textContent = formatted;
-        
-        // Add visual indicator for recent activity
-        if (timestamp) {
-          const now = Date.now();
-          const diff = now - timestamp;
-          
-          // Remove old classes
-          lastAccessEl.classList.remove('online', 'recent', 'offline');
-          
-          if (diff < 300000) { // 5 minutes
-            lastAccessEl.classList.add('online');
-          } else if (diff < 3600000) { // 1 hour
-            lastAccessEl.classList.add('recent');
-          } else {
-            lastAccessEl.classList.add('offline');
-          }
-        } else {
-          // No data yet - show as offline but don't show "Mai"
-          lastAccessEl.classList.remove('online', 'recent', 'offline');
-          lastAccessEl.classList.add('offline');
-          lastAccessEl.textContent = "Offline";
-        }
-      };
-      
-      // Set up listener
-      presenceRef.on('value', updateLastAccessDisplay);
-      
-      // Store reference for cleanup
-      contactElement._lastAccessRef = presenceRef;
+      // No database listener needed for now
+      contactElement._lastAccessRef = null;
     }
 
     function initContacts(){
