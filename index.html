@@ -1070,8 +1070,11 @@
             // invia richiesta in modo sicuro
             const res = await sendFriendRequestIfNeeded(otherUid);
             if(res.ok){
+              // Aggiungi il contatto alla tua lista amici in modo che tu possa accedere alla stanza
+              await ensureLocalContactOnce(currentUid, { name: displayName || "Contatto", room });
               suggestedStatus.textContent = "Richiesta inviata";
               div.remove();
+              updateFriendsCount();
             } else {
               if(res.reason === "already_friends") suggestedStatus.textContent = "Siete già amici";
               else if(res.reason === "already_requested") suggestedStatus.textContent = "Richiesta già inviata";
