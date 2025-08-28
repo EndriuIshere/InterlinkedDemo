@@ -435,7 +435,15 @@
       if(!currentUid) return showToast("Utente non caricato");
       const link = `${location.origin}${location.pathname}?add=${currentUid}`;
       try{
-        if(navigator.share){ await navigator.share({ title:"Interlinked", text:"Aggiungimi su Interlinked!", url:link }); }
+        // Check if Android interface is available (WebView)
+        if(window.Android && window.Android.shareContent){
+          window.Android.shareContent("Interlinked", "Aggiungimi su Interlinked!", link);
+        }
+        // Fallback to Web Share API for browsers
+        else if(navigator.share){ 
+          await navigator.share({ title:"Interlinked", text:"Aggiungimi su Interlinked!", url:link }); 
+        }
+        // Final fallback to copy to clipboard
         else {
           await appPrompt({ title:"Condividi UID", message:"Copia questo link", value:link });
           await navigator.clipboard.writeText(link).catch(()=>{});
