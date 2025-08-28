@@ -515,13 +515,28 @@
       lastAccessInterval = setInterval(updateLastAccess, 30000);
     }
 
+    // Cache contacts to avoid repeated database reads
+    let cachedContacts = {};
+    
     function updateLastAccess() {
       if (!currentUid) return;
       
       const now = Date.now();
-      db.ref(`users/${currentUid}/lastAccess`).set(now).catch(e => {
-        console.warn('Errore aggiornando lastAccess:', e);
+      const updates = {};
+      
+      // Use cached contacts if available
+      Object.keys(cachedContacts).forEach(contactId => {
+        const contact = cachedContacts[contactId];
+        if (contact && contact.room) {
+          updates[`presence/${contact.room}/${currentUid}/lastSeen`] = now;
+        }
       });
+      
+      if (Object.keys(updates).length > 0) {
+        db.ref().update(updates).catch(e => {
+          console.warn('Errore aggiornando presence:', e);
+        });
+      }
     }
 
     function stopLastAccessTracking() {
@@ -629,12 +644,20 @@
       if (!otherUid) return;
       
       const lastAccessEl = contactElement.querySelector('.last-access');
+      const room = contactElement.dataset.room;
       
-      // Listen for last access updates
-      const lastAccessRef = db.ref(`users/${otherUid}/lastAccess`);
+      // Use the same approach as room system - store in a shared location
+      // We'll use the room's presence data instead of direct user access
+      const presenceRef = db.ref(`presence/${room}/${otherUid}`);
       
       const updateLastAccessDisplay = (snapshot) => {
-        const timestamp = snapshot.val();
+        const data = snapshot.val();
+        let timestamp = null;
+        
+        if (data && data.lastSeen) {
+          timestamp = data.lastSeen;
+        }
+        
         const formatted = formatLastAccess(timestamp);
         lastAccessEl.textContent = formatted;
         
@@ -653,14 +676,19 @@
           } else {
             lastAccessEl.classList.add('offline');
           }
+        } else {
+          // No data yet - show as offline but don't show "Mai"
+          lastAccessEl.classList.remove('online', 'recent', 'offline');
+          lastAccessEl.classList.add('offline');
+          lastAccessEl.textContent = "Offline";
         }
       };
       
       // Set up listener
-      lastAccessRef.on('value', updateLastAccessDisplay);
+      presenceRef.on('value', updateLastAccessDisplay);
       
       // Store reference for cleanup
-      contactElement._lastAccessRef = lastAccessRef;
+      contactElement._lastAccessRef = presenceRef;
     }
 
     function initContacts(){
@@ -675,12 +703,14 @@
       if(contactsRef) contactsRef.off();
       contactsRef = db.ref("users/"+currentUid+"/contacts");
       contactsRef.on("child_added", s=>{
+        cachedContacts[s.key] = s.val();
         const node = renderContact(s.key, s.val());
         contactsEl.appendChild(node);
         lucide.createIcons();
         updateFriendsCount();
       });
       contactsRef.on("child_changed", s=>{
+        cachedContacts[s.key] = s.val();
         const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el){
           // Clean up old listener
@@ -693,6 +723,7 @@
         }
       });
       contactsRef.on("child_removed", s=>{
+        delete cachedContacts[s.key];
         const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el) {
           // Clean up listener before removing
