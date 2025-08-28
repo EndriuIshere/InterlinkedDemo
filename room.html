@@ -432,6 +432,10 @@
           </div>
           <div class="row"><label>Volume
             <input type="range" id="soundVol" min="0" max="1" step="0.05" value="0.4"></label></div>
+          <hr style="border:none;border-top:1px solid #334155;margin:6px 0">
+          <div class="row"><span>Vibrazione</span>
+            <label class="small"><input type="checkbox" id="vibrationEnabled" checked> Attiva</label>
+          </div>
           <div class="row"><span>Carica suono (mp3 ≤ 5s)</span>
             <input type="file" id="soundFile" accept="audio/mpeg" style="display:none">
             <button id="fileBtn" class="file-btn" title="Carica">
@@ -520,6 +524,12 @@
     const SOUND_THROTTLE_MS = 80; // avoid overwhelming clicks
     let audioPrimed = false;
 
+    // Vibration state
+    let VIBRATION_ENABLED = true;
+    let lastVibrationAt = 0;
+    const VIBRATION_THROTTLE_MS = 100; // avoid overwhelming vibrations
+    let vibrationPrimed = false;
+
     const CLIENT = 'c_' + rndId();
     const ROOM = (location.hash && location.hash.slice(1)) || ('room_' + rndId());
     if (!location.hash) history.replaceState(null, '', location.pathname + '#' + ROOM);
@@ -595,6 +605,24 @@
         audioCtx.resume().catch(()=>{});
       }
       return true;
+    }
+
+    // ===== Vibration helpers =====
+    function ensureVibration(){
+      if (!vibrationPrimed) return false;
+      return typeof Android !== 'undefined' && Android.hasVibrator && Android.hasVibrator();
+    }
+    
+    function triggerVibration(){
+      try{
+        if (!VIBRATION_ENABLED || !vibrationPrimed) return;
+        const nowMs = performance.now();
+        if (nowMs - lastVibrationAt < VIBRATION_THROTTLE_MS) return;
+        if (!ensureVibration()) return;
+        lastVibrationAt = nowMs;
+        // Fixed vibration duration (100ms)
+        Android.vibrate(100);
+      }catch(_){ /* never block interaction */ }
     }
     function playSound(){
       try{
@@ -718,6 +746,19 @@
       SOUND_VOLUME = parseFloat(e.target.value);
       try{ localStorage.setItem('sound_vol', String(SOUND_VOLUME)); }catch(_){ }
     });
+    
+    // Vibration controls
+    function primeVibration(){
+      try{
+        vibrationPrimed = true;
+        ensureVibration();
+      }catch(_){ }
+    }
+    document.getElementById('vibrationEnabled').addEventListener('change', e=>{
+      VIBRATION_ENABLED = !!e.target.checked;
+      if (VIBRATION_ENABLED) { primeVibration(); }
+      try{ localStorage.setItem('vibration_enabled', VIBRATION_ENABLED? '1':'0'); }catch(_){ }
+    });
     document.getElementById('fileBtn').addEventListener('click', ()=>{ primeAudio(); document.getElementById('soundFile').click(); });
     document.getElementById('soundFile').addEventListener('change', async e=>{
       const file = e.target.files && e.target.files[0];
@@ -743,15 +784,16 @@
       SOUND_ENABLED = true; document.getElementById('soundEnabled').checked = true;
       SOUND_VOLUME = 0.4; document.getElementById('soundVol').value = '0.4';
       customBuffer = null; document.getElementById('soundFile').value = '';
-      try{ localStorage.removeItem('sound_custom_name'); localStorage.setItem('sound_enabled','1'); localStorage.setItem('sound_vol','0.4'); }catch(_){ }
+      VIBRATION_ENABLED = true; document.getElementById('vibrationEnabled').checked = true;
+      try{ localStorage.removeItem('sound_custom_name'); localStorage.setItem('sound_enabled','1'); localStorage.setItem('sound_vol','0.4'); localStorage.setItem('vibration_enabled','1'); }catch(_){ }
       showToast('Impostazioni ripristinate');
     });
 
     canvas.addEventListener('pointermove', (e)=>{ const p = toCanvasPos(e); sendHover(p.x, p.y); });
     canvas.addEventListener('touchmove', (e)=>{ const p = toCanvasPos(e); sendHover(p.x, p.y); }, {passive:true});
-    // On first gesture, unlock audio
-    canvas.addEventListener('pointerdown', primeAudio, { once:true });
-    canvas.addEventListener('touchstart', primeAudio, { once:true, passive:true });
+    // On first gesture, unlock audio and vibration
+    canvas.addEventListener('pointerdown', ()=>{ primeAudio(); primeVibration(); }, { once:true });
+    canvas.addEventListener('touchstart', ()=>{ primeAudio(); primeVibration(); }, { once:true, passive:true });
     window.addEventListener('resize', resizeCanvas);
 
     /************ REALTIME ************/
@@ -776,7 +818,10 @@
           // Ignore historical events from before we joined to prevent flash
           if (typeof ev.ts === 'number' && ev.ts < INIT_TS) return;
           if (ev.type === 'hover'){
-            const p = ev.payload; applyBrush(p.x, p.y, p.c, p.r);
+            const p = ev.payload; 
+            applyBrush(p.x, p.y, p.c, p.r);
+            // Trigger vibration when other person is drawing
+            triggerVibration();
           }
         });
         // Ensure events branch exists so writes don’t fail on missing parent (do not create child that could be rendered)
@@ -835,6 +880,25 @@
     initRealtime();
     initPresence();
     // default tone will load after first gesture (primeAudio)
+    
+    // Load saved settings
+    try{
+      const savedSoundEnabled = localStorage.getItem('sound_enabled');
+      if (savedSoundEnabled !== null) {
+        SOUND_ENABLED = savedSoundEnabled === '1';
+        document.getElementById('soundEnabled').checked = SOUND_ENABLED;
+      }
+      const savedSoundVol = localStorage.getItem('sound_vol');
+      if (savedSoundVol !== null) {
+        SOUND_VOLUME = parseFloat(savedSoundVol);
+        document.getElementById('soundVol').value = String(SOUND_VOLUME);
+      }
+      const savedVibrationEnabled = localStorage.getItem('vibration_enabled');
+      if (savedVibrationEnabled !== null) {
+        VIBRATION_ENABLED = savedVibrationEnabled === '1';
+        document.getElementById('vibrationEnabled').checked = VIBRATION_ENABLED;
+      }
+    }catch(_){ /* ignore localStorage errors */ }
     
     // Initialize Lucide icons
     lucide.createIcons();
