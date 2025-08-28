@@ -210,20 +210,7 @@
     }
     .name { font-size:15px; font-weight:600; }
     .roomtag { font-size:12px; color:var(--text-muted); word-break:break-all; }
-    .last-access {
-      font-size:11px;
-      transition: color 0.3s ease;
-    }
-    .last-access.online {
-      color: var(--success);
-      font-weight: 600;
-    }
-    .last-access.recent {
-      color: var(--accent);
-    }
-    .last-access.offline {
-      color: var(--text-muted);
-    }
+
     .actions { display:flex; gap:8px; }
     .actionbtn {
       border:none;
@@ -596,7 +583,6 @@
           <div class="avatar"><i data-lucide="user"></i></div>
           <div>
             <div class="name">${escapeHtml(data.name)}</div>
-            <div class="roomtag last-access" data-uid="${otherUid}">Caricamento...</div>
           </div>
         </div>
         <div class="actions">
@@ -609,10 +595,7 @@
       div.querySelector(".editBtn").addEventListener("click", (e)=>{ e.stopPropagation(); renameContact(id, data.name); });
       div.querySelector(".delBtn").addEventListener("click", (e)=>{ e.stopPropagation(); deleteContact(id, data.name); });
 
-      // Load last access time for this contact
-      if (otherUid) {
-        loadLastAccessForContact(div, otherUid);
-      }
+
 
       return div;
     }
@@ -630,79 +613,9 @@
       return uid1 === currentUid ? uid2 : uid1;
     }
 
-    function loadLastAccessForContact(contactElement, otherUid) {
-      if (!otherUid) return;
-      
-      const lastAccessEl = contactElement.querySelector('.last-access');
-      
-      // Clean up any existing listener
-      if (contactElement._lastAccessRef) {
-        contactElement._lastAccessRef.off();
-      }
-      
-      // Listen to the other user's lastAccess timestamp
-      contactElement._lastAccessRef = db.ref(`users/${otherUid}/lastAccess`);
-      contactElement._lastAccessRef.on('value', (snap) => {
-        const timestamp = snap.val();
-        updateLastAccessDisplay(lastAccessEl, timestamp);
-      });
-    }
-    
-    function updateLastAccessDisplay(element, timestamp) {
-      if (!element) return;
-      
-      element.classList.remove('online', 'recent', 'offline');
-      
-      if (!timestamp) {
-        element.classList.add('offline');
-        element.textContent = "Mai";
-        return;
-      }
-      
-      const now = Date.now();
-      const diff = now - timestamp;
-      
-      // Less than 2 minutes = Online
-      if (diff < 120000) {
-        element.classList.add('online');
-        element.textContent = "Online";
-      }
-      // Less than 1 hour = Recent
-      else if (diff < 3600000) {
-        element.classList.add('recent');
-        const minutes = Math.floor(diff / 60000);
-        element.textContent = `${minutes}m fa`;
-      }
-      // Less than 24 hours
-      else if (diff < 86400000) {
-        element.classList.add('recent');
-        const hours = Math.floor(diff / 3600000);
-        element.textContent = `${hours}h fa`;
-      }
-      // More than 24 hours = Offline
-      else {
-        element.classList.add('offline');
-        const days = Math.floor(diff / 86400000);
-        if (days < 7) {
-          element.textContent = `${days}g fa`;
-        } else {
-          const date = new Date(timestamp);
-          element.textContent = date.toLocaleDateString('it-IT', { 
-            day: '2-digit', 
-            month: '2-digit' 
-          });
-        }
-      }
-    }
+
 
     function initContacts(){
-      // Clean up existing last access listeners
-      contactsEl.querySelectorAll('.contact').forEach(contact => {
-        if (contact._lastAccessRef) {
-          contact._lastAccessRef.off();
-        }
-      });
-      
       contactsEl.innerHTML = "";
       if(contactsRef) contactsRef.off();
       contactsRef = db.ref("users/"+currentUid+"/contacts");
@@ -717,10 +630,6 @@
         cachedContacts[s.key] = s.val();
         const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el){
-          // Clean up old listener
-          if (el._lastAccessRef) {
-            el._lastAccessRef.off();
-          }
           const newNode = renderContact(s.key, s.val());
           el.replaceWith(newNode);
           lucide.createIcons();
@@ -730,10 +639,6 @@
         delete cachedContacts[s.key];
         const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el) {
-          // Clean up listener before removing
-          if (el._lastAccessRef) {
-            el._lastAccessRef.off();
-          }
           el.remove();
         }
         updateFriendsCount();
@@ -1323,13 +1228,6 @@
       stopLastAccessTracking();
       if(contactsRef) contactsRef.off();
       if(requestsRef) requestsRef.off();
-      
-      // Clean up all last access listeners
-      contactsEl.querySelectorAll('.contact').forEach(contact => {
-        if (contact._lastAccessRef) {
-          contact._lastAccessRef.off();
-        }
-      });
     });
 
     // ---------- Themed UI helpers ----------
