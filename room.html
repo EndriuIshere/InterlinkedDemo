@@ -248,6 +248,55 @@
       font-size: 12px;
       font-weight: bold;
     }
+
+    /* Pro Features Overlay */
+    .pro-feature {
+      position: relative;
+    }
+
+    .pro-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(11, 15, 25, 0.8);
+      backdrop-filter: blur(4px);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
+    }
+
+    .pro-feature:hover .pro-overlay {
+      opacity: 1;
+    }
+
+    .pro-crown {
+      color: #fbbf24;
+      font-size: 24px;
+      animation: pulse 2s infinite;
+    }
+
+    .pro-crown svg {
+      width: 24px;
+      height: 24px;
+      filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+    }
+
+    @keyframes pulse {
+      0%, 100% { 
+        transform: scale(1);
+        opacity: 1;
+      }
+      50% { 
+        transform: scale(1.1);
+        opacity: 0.8;
+      }
+    }
     
     .controls { 
       display:flex; 
@@ -420,12 +469,39 @@
         <button class="iconbtn kebab" aria-haspopup="true" aria-expanded="false" title="Menu rapido"><i data-lucide="more-vertical"></i></button>
         <div class="panel" role="menu">
           <div class="row"><span>Cambia colore</span><input type="color" id="color" value="#00ffaa"></div>
-          <div class="row" style="margin-top:8px"><label>Spaziatura puntini
-            <input type="range" id="spacing" min="10" max="40" step="2" value="18"></label></div>
-          <div class="row" style="margin-top:8px"><label>Raggio effetto
-            <input type="range" id="radius" min="20" max="200" step="4" value="90"></label></div>
-          <div class="row" style="margin-top:8px"><label>Durata scia (ms)
-            <input type="range" id="life" min="400" max="4000" step="100" value="2000"></label></div>
+          <div class="row pro-feature" style="margin-top:8px" data-feature="advanced-controls">
+            <label>Spaziatura puntini
+              <input type="range" id="spacing" min="10" max="40" step="2" value="18"></label>
+            <div class="pro-overlay">
+              <div class="pro-crown">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div class="row pro-feature" style="margin-top:8px" data-feature="advanced-controls">
+            <label>Raggio effetto
+              <input type="range" id="radius" min="20" max="200" step="4" value="90"></label>
+            <div class="pro-overlay">
+              <div class="pro-crown">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div class="row pro-feature" style="margin-top:8px" data-feature="advanced-controls">
+            <label>Durata scia (ms)
+              <input type="range" id="life" min="400" max="4000" step="100" value="2000"></label>
+            <div class="pro-overlay">
+              <div class="pro-crown">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
+                </svg>
+              </div>
+            </div>
+          </div>
           <hr style="border:none;border-top:1px solid #334155;margin:6px 0">
           <div class="row"><span>Suono interazione</span>
             <label class="small"><input type="checkbox" id="soundEnabled" checked> Attivo</label>
@@ -436,7 +512,8 @@
           <div class="row"><span>Vibrazione</span>
             <label class="small"><input type="checkbox" id="vibrationEnabled" checked> Attiva</label>
           </div>
-          <div class="row"><span>Carica suono (mp3 ≤ 5s)</span>
+          <div class="row pro-feature" data-feature="custom-sound">
+            <span>Carica suono (mp3 ≤ 5s)</span>
             <input type="file" id="soundFile" accept="audio/mpeg" style="display:none">
             <button id="fileBtn" class="file-btn" title="Carica">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -445,6 +522,13 @@
                 <line x1="12" y1="5" x2="12" y2="20"/>
               </svg>
             </button>
+            <div class="pro-overlay">
+              <div class="pro-crown">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2L15.09 8.26L22 9L17 14L18.18 21L12 17.77L5.82 21L7 14L2 9L8.91 8.26L12 2Z"/>
+                </svg>
+              </div>
+            </div>
           </div>
           <div class="row"><button class="btn" id="resetBtn">Reset</button></div>
         </div>
@@ -484,10 +568,68 @@
     const auth = firebase.auth();
 
     // Gate: se non loggato torna al login
-    auth.onAuthStateChanged(u=>{ if(!u) location.replace('login.html'); });
+    auth.onAuthStateChanged(async (u) => { 
+      if(!u) location.replace('login.html');
+      else {
+        await loadUserSubscription();
+        updateProFeatures();
+      }
+    });
 
     // Back ai contatti
     document.getElementById("back").addEventListener("click", ()=> location.href='index.html');
+
+    // Load user subscription
+    async function loadUserSubscription() {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        const subscriptionSnap = await db.ref(`users/${user.uid}/subscription`).once('value');
+        const subscription = subscriptionSnap.val();
+        
+        if (subscription && subscription.status === 'active') {
+          userSubscription = {
+            plan: subscription.plan,
+            expiresAt: subscription.expiresAt,
+            status: subscription.status
+          };
+        } else {
+          userSubscription = { plan: 'free', status: 'active' };
+        }
+      } catch (error) {
+        console.error('Error loading subscription:', error);
+        userSubscription = { plan: 'free', status: 'active' };
+      }
+    }
+
+    // Update pro features based on subscription
+    function updateProFeatures() {
+      const isPro = userSubscription && userSubscription.plan === 'pro';
+      
+      // Enable/disable pro features
+      document.querySelectorAll('.pro-feature').forEach(feature => {
+        const inputs = feature.querySelectorAll('input, button');
+        inputs.forEach(input => {
+          input.disabled = !isPro;
+        });
+        
+        // Show/hide overlay
+        const overlay = feature.querySelector('.pro-overlay');
+        if (overlay) {
+          overlay.style.display = isPro ? 'none' : 'flex';
+        }
+        
+        // Add click handler for non-pro users
+        if (!isPro) {
+          feature.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            location.href = 'plans.html';
+          });
+        }
+      });
+    }
 
     /************ UTIL ************/
     const $ = s => document.querySelector(s);
@@ -550,6 +692,7 @@
     } catch(_){ const nameEl = document.getElementById('userName'); if (nameEl) nameEl.textContent = 'Stanza ' + ROOM; }
 
     let RT = { enabled:false, db:null };
+    let userSubscription = null;
 
     /************ GRIGLIA ************/
     function resizeCanvas(){

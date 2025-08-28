@@ -312,11 +312,21 @@
       <div id="phone" class="readonly"></div>
     </div>
 
+    <div class="field">
+      <div class="label">Piano di Abbonamento</div>
+      <div id="subscriptionInfo" class="readonly"></div>
+    </div>
+
 
 
     <div class="btn-row">
       <button id="changePassBtn" class="btn"><i data-lucide="lock"></i>Cambia Password</button>
       <button id="saveBtn" class="btn"><i data-lucide="save"></i>Salva</button>
+    </div>
+
+    <div class="btn-row">
+      <button id="managePlansBtn" class="btn"><i data-lucide="crown"></i>Gestisci Piani</button>
+      <button id="cancelSubscriptionBtn" class="btn" style="display:none"><i data-lucide="x-circle"></i>Disdici Rinnovo</button>
     </div>
     
     <div class="links-section">
@@ -375,6 +385,9 @@
 
     const auth = firebase.auth(), db = firebase.database();
     const username = document.getElementById("username"), email = document.getElementById("email"), phone = document.getElementById("phone");
+    const subscriptionInfo = document.getElementById("subscriptionInfo");
+    const managePlansBtn = document.getElementById("managePlansBtn");
+    const cancelSubscriptionBtn = document.getElementById("cancelSubscriptionBtn");
 
     // Normalizza numeri: rimuove spazi/separatori, mantiene + e cifre
     function normalizePhone(input){
@@ -413,6 +426,13 @@
         username.value = profile.name || "";
         phone.textContent = profile.phone || "";
       });
+
+      // Load subscription info
+      loadSubscriptionInfo();
+
+      // Plan management handlers
+      managePlansBtn.onclick = () => location.href = 'plans.html';
+      cancelSubscriptionBtn.onclick = cancelSubscription;
 
       document.getElementById("saveBtn").onclick = async () => {
         const val = username.value.trim() || "Utente";
@@ -528,6 +548,68 @@
     }
     function appConfirm(opts){ return appDialog({ ...opts, showInput:false }); }
     function showToast(msg){ const t=document.getElementById('uiToast'); t.textContent=msg; t.style.display='block'; clearTimeout(t.__to); t.__to=setTimeout(()=>{ t.style.display='none'; }, 2200); }
+
+    // Load subscription information
+    async function loadSubscriptionInfo() {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        const subscriptionSnap = await db.ref(`users/${user.uid}/subscription`).once('value');
+        const subscription = subscriptionSnap.val();
+        
+        if (subscription && subscription.status === 'active') {
+          const planName = subscription.plan === 'pro' ? 'Pro' : 'Free';
+          const expiresAt = subscription.expiresAt;
+          
+          if (expiresAt) {
+            const expiryDate = new Date(expiresAt);
+            const formattedDate = expiryDate.toLocaleDateString('it-IT');
+            subscriptionInfo.textContent = `${planName} - Scade il ${formattedDate}`;
+            
+            // Show cancel button for pro subscriptions
+            if (subscription.plan === 'pro') {
+              cancelSubscriptionBtn.style.display = 'block';
+            }
+          } else {
+            subscriptionInfo.textContent = `${planName} - Attivo`;
+          }
+        } else {
+          subscriptionInfo.textContent = 'Free - Attivo';
+        }
+      } catch (error) {
+        console.error('Error loading subscription info:', error);
+        subscriptionInfo.textContent = 'Free - Attivo';
+      }
+    }
+
+    // Cancel subscription
+    async function cancelSubscription() {
+      const confirmed = await appConfirm({ 
+        title: 'Disdici Rinnovo', 
+        message: 'Sei sicuro di voler disdire il rinnovo automatico? Il tuo piano Pro rimarrà attivo fino alla scadenza.' 
+      });
+      
+      if (!confirmed) return;
+      
+      try {
+        const user = auth.currentUser;
+        const subscriptionSnap = await db.ref(`users/${user.uid}/subscription`).once('value');
+        const subscription = subscriptionSnap.val();
+        
+        if (subscription && subscription.stripeSubscriptionId) {
+          // For client-side only: redirect to Stripe customer portal
+          showToast('Per gestire il tuo abbonamento, visita il portale clienti Stripe');
+          // In a real implementation, you'd redirect to Stripe's customer portal
+          // window.open('https://billing.stripe.com/p/login/...', '_blank');
+        } else {
+          showToast('Nessuna sottoscrizione attiva trovata');
+        }
+      } catch (error) {
+        console.error('Error canceling subscription:', error);
+        showToast('Errore durante la disattivazione del rinnovo');
+      }
+    }
   </script>
 </body>
 </html>

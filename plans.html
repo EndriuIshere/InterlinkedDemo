@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Piani — Interlinked</title>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      --gap: 12px;
+      --bg-dark: #0b0f19;
+      --bg-card: #141a2a;
+      --bg-hover: #1b2235;
+      --border: #2c344a;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --text: #e5e7eb;
+      --text-muted: #94a3b8;
+      --danger: #ef4444;
+      --success: #10b981;
+      --gold: #fbbf24;
+      --gold-hover: #f59e0b;
+    }
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      min-height:100vh;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      padding: 14px;
+      padding-top: 60px;
+    }
+    .app {
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      gap:var(--gap);
+      max-width:920px;
+      margin:0 auto;
+      animation: slideUp 0.6s ease-out;
+      position: relative;
+      z-index: 1;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Topbar */
+    .topbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 16px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background: var(--bg-card);
+      box-shadow: 0 4px 16px rgba(0,0,0,.4);
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.1s;
+      animation-fill-mode: both;
+      position: relative;
+      z-index: 100;
+    }
+    .title {
+      font-weight:800;
+      font-size:1.25rem;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+    }
+    .iconbtn {
+      display:grid;
+      place-items:center;
+      width:38px;
+      height:38px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background: var(--bg-card);
+      cursor:pointer;
+      color:var(--text);
+      font-size:20px;
+      transition: background .2s, transform .2s;
+    }
+    .iconbtn:hover { 
+      background: var(--bg-hover); 
+      transform: scale(1.04);
+      box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    }
+
+    /* Plans Container */
+    .plans-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+      animation: fadeIn 0.8s ease-out;
+      animation-delay: 0.2s;
+      animation-fill-mode: both;
+    }
+
+    @media (max-width: 768px) {
+      .plans-container {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+    }
+
+    /* Plan Cards */
+    .plan-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      position: relative;
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    .plan-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.4);
+    }
+
+    .plan-card.pro {
+      border-color: var(--gold);
+      background: linear-gradient(135deg, var(--bg-card) 0%, rgba(251, 191, 36, 0.05) 100%);
+    }
+
+    .plan-card.pro::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--gold), var(--gold-hover));
+    }
+
+    .plan-header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .plan-name {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .plan-card.free .plan-name {
+      color: var(--text);
+    }
+
+    .plan-card.pro .plan-name {
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .plan-price {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .plan-card.free .plan-price {
+      color: var(--success);
+    }
+
+    .plan-card.pro .plan-price {
+      color: var(--gold);
+    }
+
+    .plan-period {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .plan-features {
+      list-style: none;
+      margin-bottom: 24px;
+    }
+
+    .plan-features li {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      color: var(--text-muted);
+    }
+
+    .plan-features li i {
+      color: var(--success);
+      font-size: 16px;
+    }
+
+    .plan-card.pro .plan-features li i {
+      color: var(--gold);
+    }
+
+    .plan-button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-hover);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .plan-card.free .plan-button {
+      background: var(--success);
+      border-color: var(--success);
+      color: white;
+    }
+
+    .plan-card.free .plan-button:hover {
+      background: #059669;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    }
+
+    .plan-card.pro .plan-button {
+      background: var(--gold);
+      border-color: var(--gold);
+      color: #1f2937;
+    }
+
+    .plan-card.pro .plan-button:hover {
+      background: var(--gold-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(251, 191, 36, 0.3);
+    }
+
+    .plan-button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .current-plan {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: var(--success);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .plan-card.pro .current-plan {
+      background: var(--gold);
+      color: #1f2937;
+    }
+
+    /* Mobile optimizations */
+    @media (max-height: 700px) {
+      body {
+        padding-top: 50px;
+      }
+      .plans-container {
+        gap: 16px;
+        margin-top: 16px;
+      }
+      .plan-card {
+        padding: 20px;
+      }
+      .plan-price {
+        font-size: 2rem;
+      }
+    }
+    
+    @media (max-height: 600px) {
+      body {
+        padding-top: 40px;
+      }
+      .plans-container {
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .plan-card {
+        padding: 16px;
+      }
+      .plan-price {
+        font-size: 1.8rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <button class="iconbtn" onclick="history.back()" title="Indietro">
+        <i data-lucide="arrow-left"></i>
+      </button>
+      <div class="title">Piani di Abbonamento</div>
+      <div style="width:38px"></div>
+    </div>
+
+    <div class="plans-container">
+      <!-- Free Plan -->
+      <div class="plan-card free" id="freePlan">
+        <div class="plan-header">
+          <div class="plan-name">Free</div>
+          <div class="plan-price">€0</div>
+          <div class="plan-period">per sempre</div>
+        </div>
+        
+        <ul class="plan-features">
+          <li><i data-lucide="check"></i> Chat in tempo reale</li>
+          <li><i data-lucide="check"></i> Fino a 10 contatti</li>
+          <li><i data-lucide="check"></i> Stanze collaborative</li>
+          <li><i data-lucide="check"></i> Disegno base</li>
+          <li><i data-lucide="check"></i> Suoni predefiniti</li>
+        </ul>
+        
+        <button class="plan-button" id="freeButton">
+          <i data-lucide="check"></i>
+          <span id="freeButtonText">Attiva Piano Gratuito</span>
+        </button>
+      </div>
+
+      <!-- Pro Plan -->
+      <div class="plan-card pro" id="proPlan">
+        <div class="plan-header">
+          <div class="plan-name">
+            <i data-lucide="crown"></i>
+            Pro
+          </div>
+          <div class="plan-price">€0.99</div>
+          <div class="plan-period">al mese</div>
+        </div>
+        
+        <ul class="plan-features">
+          <li><i data-lucide="check"></i> Tutto del piano Free</li>
+          <li><i data-lucide="check"></i> Contatti illimitati</li>
+          <li><i data-lucide="check"></i> Suoni personalizzati</li>
+          <li><i data-lucide="check"></i> Controlli avanzati</li>
+          <li><i data-lucide="check"></i> Personalizzazione completa</li>
+          <li><i data-lucide="check"></i> Supporto prioritario</li>
+        </ul>
+        
+        <button class="plan-button" id="proButton">
+          <i data-lucide="credit-card"></i>
+          <span id="proButtonText">Acquista Pro</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+  <!-- Stripe -->
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <script>
+    // Firebase Configuration
+    firebase.initializeApp({
+      apiKey: "AIzaSyDgqD_R_L-qgIaFGB_c9qJRID0KV9jgLPY",
+      authDomain: "interlinked-b5d13.firebaseapp.com",
+      databaseURL: "https://interlinked-b5d13-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "interlinked-b5d13",
+      storageBucket: "interlinked-b5d13.firebasestorage.app",
+      messagingSenderId: "146726521975",
+      appId: "1:146726521975:web:f42bbfe0c1207a1ac14a72",
+      measurementId: "G-79V9PFWB4E"
+    });
+
+    const auth = firebase.auth();
+    const db = firebase.database();
+    
+    // Stripe Configuration - Replace with your publishable key
+    const stripe = Stripe('pk_test_51S1A8EB8pJxKP4IkqfwSnguThL83kytPqcP4ldfSv1itrnW1Ky5hKzSBfmYG1fnbVbz5hOYcQZKM57xHeyu1Ybnv00sgufHBk8');
+    
+    let currentUser = null;
+    let currentPlan = null;
+
+    // Initialize
+    auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        location.replace('login.html');
+        return;
+      }
+      
+      currentUser = user;
+      await loadUserPlan();
+      updatePlanButtons();
+      
+      // Handle success/cancel from Stripe
+      handleStripeReturn();
+    });
+
+    // Load user's current plan
+    async function loadUserPlan() {
+      try {
+        const planSnap = await db.ref(`users/${currentUser.uid}/subscription`).once('value');
+        const planData = planSnap.val();
+        
+        if (planData && planData.status === 'active') {
+          currentPlan = {
+            type: planData.plan,
+            expiresAt: planData.expiresAt,
+            status: planData.status
+          };
+        } else {
+          currentPlan = { type: 'free', status: 'active' };
+        }
+      } catch (error) {
+        console.error('Error loading user plan:', error);
+        currentPlan = { type: 'free', status: 'active' };
+      }
+    }
+
+    // Update plan buttons based on current plan
+    function updatePlanButtons() {
+      const freeButton = document.getElementById('freeButton');
+      const proButton = document.getElementById('proButton');
+      const freeButtonText = document.getElementById('freeButtonText');
+      const proButtonText = document.getElementById('proButtonText');
+      
+      // Remove current plan indicators
+      document.querySelectorAll('.current-plan').forEach(el => el.remove());
+      
+      if (currentPlan.type === 'free') {
+        freeButtonText.textContent = 'Piano Attivo';
+        freeButton.disabled = true;
+        proButtonText.textContent = 'Passa a Pro';
+        proButton.disabled = false;
+        
+        // Add current plan indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'current-plan';
+        indicator.textContent = 'Attivo';
+        document.getElementById('freePlan').appendChild(indicator);
+        
+      } else if (currentPlan.type === 'pro') {
+        freeButtonText.textContent = 'Passa a Free';
+        freeButton.disabled = false;
+        proButtonText.textContent = 'Piano Attivo';
+        proButton.disabled = true;
+        
+        // Add current plan indicator
+        const indicator = document.createElement('div');
+        indicator.className = 'current-plan';
+        indicator.textContent = 'Attivo';
+        document.getElementById('proPlan').appendChild(indicator);
+      }
+    }
+
+    // Handle Free plan activation
+    document.getElementById('freeButton').addEventListener('click', async () => {
+      if (currentPlan.type === 'free') return;
+      
+      try {
+        // Cancel current subscription if exists
+        if (currentPlan.type === 'pro') {
+          await cancelSubscription();
+        }
+        
+        // Set to free plan
+        await db.ref(`users/${currentUser.uid}/subscription`).set({
+          plan: 'free',
+          status: 'active',
+          activatedAt: Date.now(),
+          expiresAt: null
+        });
+        
+        currentPlan = { type: 'free', status: 'active' };
+        updatePlanButtons();
+        
+        showToast('Piano Free attivato con successo!');
+        
+      } catch (error) {
+        console.error('Error activating free plan:', error);
+        showToast('Errore nell\'attivazione del piano Free');
+      }
+    });
+
+    // Handle Pro plan purchase
+    document.getElementById('proButton').addEventListener('click', async () => {
+      if (currentPlan.type === 'pro') return;
+      
+      try {
+        // Create checkout session directly with Stripe
+        const { error } = await stripe.redirectToCheckout({
+          lineItems: [{
+            price: 'price_1S1BElB8pJxKP4IkCqu2fXZt', // Replace with your actual Stripe price ID
+            quantity: 1,
+          }],
+          mode: 'subscription',
+          successUrl: `${window.location.protocol}//${window.location.host}/plans.html?success=true`,
+          cancelUrl: `${window.location.protocol}//${window.location.host}/plans.html?canceled=true`,
+          customerEmail: currentUser.email
+        });
+        
+        if (error) {
+          showToast('Errore durante il checkout: ' + error.message);
+        }
+        
+      } catch (error) {
+        console.error('Error creating checkout session:', error);
+        showToast('Errore durante l\'acquisto del piano Pro');
+      }
+    });
+
+    // Cancel subscription (for switching to free)
+    async function cancelSubscription() {
+      try {
+        const subscriptionSnap = await db.ref(`users/${currentUser.uid}/subscription`).once('value');
+        const subscription = subscriptionSnap.val();
+        
+        if (subscription && subscription.stripeSubscriptionId) {
+          // For now, just update Firebase - user will need to cancel in Stripe dashboard
+          // In a real implementation, you'd need a backend to cancel Stripe subscriptions
+          showToast('Per cancellare l\'abbonamento, vai al tuo profilo Stripe');
+        }
+      } catch (error) {
+        console.error('Error canceling subscription:', error);
+      }
+    }
+
+    // Toast notification
+    function showToast(message) {
+      // Create toast element
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--bg-card);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 20px;
+        z-index: 1000;
+        box-shadow: 0 8px 20px rgba(0,0,0,.4);
+        animation: slideUp 0.3s ease-out;
+      `;
+      toast.textContent = message;
+      
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.remove();
+      }, 3000);
+    }
+
+    // Handle Stripe return (success/cancel)
+    function handleStripeReturn() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const success = urlParams.get('success');
+      const canceled = urlParams.get('canceled');
+      
+      if (success === 'true') {
+        showToast('Pagamento completato con successo! Il tuo piano Pro è attivo.');
+        // Simulate Pro plan activation
+        simulateProActivation();
+      } else if (canceled === 'true') {
+        showToast('Pagamento annullato.');
+      }
+      
+      // Clean URL
+      if (success || canceled) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
+    // Simulate Pro plan activation (in real app, this would be handled by Stripe webhooks)
+    async function simulateProActivation() {
+      try {
+        await db.ref(`users/${currentUser.uid}/subscription`).set({
+          plan: 'pro',
+          status: 'active',
+          activatedAt: Date.now(),
+          expiresAt: Date.now() + (30 * 24 * 60 * 60 * 1000), // 30 days from now
+          stripeCustomerId: 'simulated_customer',
+          stripeSubscriptionId: 'simulated_subscription'
+        });
+        
+        currentPlan = { type: 'pro', status: 'active' };
+        updatePlanButtons();
+      } catch (error) {
+        console.error('Error simulating Pro activation:', error);
+      }
+    }
+
+    // Initialize Lucide icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>
