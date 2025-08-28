@@ -635,14 +635,64 @@
       
       const lastAccessEl = contactElement.querySelector('.last-access');
       
-      // For now, just show offline status since security rules prevent reading other users' data
-      // This can be enhanced later when security rules are properly configured
-      lastAccessEl.classList.remove('online', 'recent', 'offline');
-      lastAccessEl.classList.add('offline');
-      lastAccessEl.textContent = "Offline";
+      // Clean up any existing listener
+      if (contactElement._lastAccessRef) {
+        contactElement._lastAccessRef.off();
+      }
       
-      // No database listener needed for now
-      contactElement._lastAccessRef = null;
+      // Listen to the other user's lastAccess timestamp
+      contactElement._lastAccessRef = db.ref(`users/${otherUid}/lastAccess`);
+      contactElement._lastAccessRef.on('value', (snap) => {
+        const timestamp = snap.val();
+        updateLastAccessDisplay(lastAccessEl, timestamp);
+      });
+    }
+    
+    function updateLastAccessDisplay(element, timestamp) {
+      if (!element) return;
+      
+      element.classList.remove('online', 'recent', 'offline');
+      
+      if (!timestamp) {
+        element.classList.add('offline');
+        element.textContent = "Mai";
+        return;
+      }
+      
+      const now = Date.now();
+      const diff = now - timestamp;
+      
+      // Less than 2 minutes = Online
+      if (diff < 120000) {
+        element.classList.add('online');
+        element.textContent = "Online";
+      }
+      // Less than 1 hour = Recent
+      else if (diff < 3600000) {
+        element.classList.add('recent');
+        const minutes = Math.floor(diff / 60000);
+        element.textContent = `${minutes}m fa`;
+      }
+      // Less than 24 hours
+      else if (diff < 86400000) {
+        element.classList.add('recent');
+        const hours = Math.floor(diff / 3600000);
+        element.textContent = `${hours}h fa`;
+      }
+      // More than 24 hours = Offline
+      else {
+        element.classList.add('offline');
+        const days = Math.floor(diff / 86400000);
+        if (days < 7) {
+          element.textContent = `${days}g fa`;
+        } else {
+          const date = new Date(timestamp);
+          element.textContent = date.toLocaleDateString('it-IT', { 
+            day: '2-digit', 
+            month: '2-digit' 
+          });
+        }
+      }
     }
 
     function initContacts(){
