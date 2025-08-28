@@ -385,9 +385,6 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 
-  <!-- Stripe -->
-  <script src="https://js.stripe.com/v3/"></script>
-
   <script>
     // Firebase Configuration
     firebase.initializeApp({
@@ -403,9 +400,6 @@
 
     const auth = firebase.auth();
     const db = firebase.database();
-    
-    // Stripe Configuration - Replace with your publishable key
-    const stripe = Stripe('pk_test_51S1A8EB8pJxKP4IkqfwSnguThL83kytPqcP4ldfSv1itrnW1Ky5hKzSBfmYG1fnbVbz5hOYcQZKM57xHeyu1Ybnv00sgufHBk8');
     
     let currentUser = null;
     let currentPlan = null;
@@ -515,27 +509,9 @@
     document.getElementById('proButton').addEventListener('click', async () => {
       if (currentPlan.type === 'pro') return;
       
-      try {
-        // Create checkout session directly with Stripe
-        const { error } = await stripe.redirectToCheckout({
-          lineItems: [{
-            price: 'price_1S1BElB8pJxKP4IkCqu2fXZt', // Replace with your actual Stripe price ID
-            quantity: 1,
-          }],
-          mode: 'subscription',
-          successUrl: `${window.location.protocol}//${window.location.host}/plans.html?success=true`,
-          cancelUrl: `${window.location.protocol}//${window.location.host}/plans.html?canceled=true`,
-          customerEmail: currentUser.email
-        });
-        
-        if (error) {
-          showToast('Errore durante il checkout: ' + error.message);
-        }
-        
-      } catch (error) {
-        console.error('Error creating checkout session:', error);
-        showToast('Errore durante l\'acquisto del piano Pro');
-      }
+      // Redirect to Stripe Payment Link (super simple!)
+      // Replace this URL with your actual Stripe Payment Link
+      window.open('https://buy.stripe.com/test_9B69AS1Ji2wT5439lDbZe00', '_blank');
     });
 
     // Cancel subscription (for switching to free)
@@ -546,7 +522,6 @@
         
         if (subscription && subscription.stripeSubscriptionId) {
           // For now, just update Firebase - user will need to cancel in Stripe dashboard
-          // In a real implementation, you'd need a backend to cancel Stripe subscriptions
           showToast('Per cancellare l\'abbonamento, vai al tuo profilo Stripe');
         }
       } catch (error) {
