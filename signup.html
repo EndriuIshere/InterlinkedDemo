@@ -129,6 +129,56 @@
       animation: fadeIn 0.8s ease-out;
     }
     
+    .input-container {
+      display: flex;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    .country-select {
+      flex: 0 0 auto;
+      width: 100px;
+      height: 48px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      outline: none;
+      opacity: 0;
+      transform: translateX(-20px);
+      overflow: hidden;
+      max-width: 0;
+    }
+    
+    .country-select.show {
+      opacity: 1;
+      transform: translateX(0);
+      max-width: 100px;
+    }
+    
+    .country-select:hover {
+      border-color: var(--accent);
+    }
+    
+    .country-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    #phone {
+      flex: 1;
+      transition: all 0.3s ease;
+    }
+    
+    #phoneLabel {
+      transition: all 0.3s ease;
+    }
+    
     .field:nth-child(2) { animation-delay: 0.1s; }
     .field:nth-child(3) { animation-delay: 0.2s; }
     .field:nth-child(4) { animation-delay: 0.3s; }
@@ -339,8 +389,22 @@
     </div>
 
     <div class="field">
-      <label for="phone">Telefono (opzionale)</label>
-      <input id="phone" type="tel" placeholder="Es. +393331234567" autocomplete="tel" />
+      <label for="phone" id="phoneLabel">Telefono</label>
+      <div class="input-container">
+        <select id="countryCode" class="country-select show">
+          <option value="+39">🇮🇹 +39</option>
+          <option value="+1">🇺🇸 +1</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+49">🇩🇪 +49</option>
+          <option value="+34">🇪🇸 +34</option>
+          <option value="+7">🇷🇺 +7</option>
+          <option value="+86">🇨🇳 +86</option>
+          <option value="+81">🇯🇵 +81</option>
+          <option value="+91">🇮🇳 +91</option>
+        </select>
+        <input id="phone" type="tel" placeholder="Es. 3331234567" autocomplete="tel" required />
+      </div>
     </div>
 
     <button id="signupBtn" class="btn">Registrati</button>
@@ -384,7 +448,83 @@
       const m = trimmed.match(/^\+?[0-9]{6,}$/);
       if (!m) return "";
       if (trimmed.startsWith('+')) return trimmed;
-      return trimmed;
+      return '+' + trimmed;
+    }
+
+    // Valida formato telefono
+    function validatePhone(phone) {
+      if (!phone) return false;
+      // Formato internazionale: + seguito da 7-15 cifre (inclusi numeri che iniziano con 0)
+      return /^\+[0-9]\d{6,14}$/.test(phone);
+    }
+
+    // Codifica email per essere usata come chiave Firebase (rimuove caratteri non validi)
+    function encodeEmailForFirebase(email) {
+      return email.toLowerCase().replace(/[.#$/[\]]/g, '_');
+    }
+
+    // Decodifica email da chiave Firebase
+    function decodeEmailFromFirebase(encodedEmail) {
+      return encodedEmail.replace(/_/g, '.');
+    }
+
+    // Rileva se l'input è un'email o un telefono
+    function detectInputType(input) {
+      if (!input) return 'phone';
+      
+      const trimmed = input.trim();
+      
+      // Se contiene @ è sicuramente un'email
+      if (trimmed.includes('@')) return 'email';
+      
+      // Se inizia con + seguito da numeri è un telefono
+      if (/^\+\d+/.test(trimmed)) return 'phone';
+      
+      // Se contiene solo numeri (almeno 7 cifre) è un telefono
+      if (/^\d{7,}$/.test(trimmed.replace(/\s/g, ''))) return 'phone';
+      
+      // Se contiene solo numeri, +, spazi, trattini, parentesi ed è abbastanza lungo
+      if (/^[\d\s\+\-\(\)]+$/.test(trimmed) && trimmed.replace(/\D/g, '').length >= 7) return 'phone';
+      
+      // Default: phone (per signup)
+      return 'phone';
+    }
+
+    // Aggiorna l'UI in base al tipo di input rilevato
+    function updateInputUI(inputType) {
+      const label = document.getElementById('phoneLabel');
+      const countrySelect = document.getElementById('countryCode');
+      const phone = document.getElementById('phone');
+      
+      // Evita cambiamenti inutili
+      const currentType = countrySelect.classList.contains('show') ? 'phone' : 'email';
+      if (currentType === inputType) return;
+      
+      if (inputType === 'phone') {
+        // Animazione per passare a modalità telefono
+        label.textContent = 'Telefono';
+        phone.placeholder = 'Es. 3331234567';
+        phone.type = 'tel';
+        
+        // Mostra il dropdown con animazione
+        countrySelect.style.display = 'block';
+        // Forza un reflow per assicurarsi che l'elemento sia visibile
+        countrySelect.offsetHeight;
+        countrySelect.classList.add('show');
+      } else {
+        // Animazione per passare a modalità email
+        label.textContent = 'E-mail';
+        phone.placeholder = 'Es. mario@esempio.com';
+        phone.type = 'email';
+        
+        // Nascondi il dropdown con animazione
+        countrySelect.classList.remove('show');
+        setTimeout(() => {
+          if (!countrySelect.classList.contains('show')) {
+            countrySelect.style.display = 'none';
+          }
+        }, 300);
+      }
     }
 
     // Mappa errori Firebase in italiano
@@ -431,9 +571,36 @@
       const pass  = document.getElementById("password").value;
       const uname = document.getElementById("username").value.trim();
       const phoneRaw = document.getElementById("phone").value.trim();
-      const phone = normalizePhone(phoneRaw);
+      const countryCode = document.getElementById("countryCode").value;
       
+      // Rileva il tipo di input e gestisci di conseguenza
+      const inputType = detectInputType(phoneRaw);
+      let phone = null;
+      
+      console.log('Signup - phoneRaw:', phoneRaw, 'countryCode:', countryCode, 'inputType:', inputType);
+      
+      if (inputType === 'phone') {
+        // Combina il prefisso del paese con il numero
+        const fullPhone = countryCode + phoneRaw;
+        phone = normalizePhone(fullPhone);
+        console.log('Signup - fullPhone:', fullPhone, 'normalized phone:', phone);
+      } else {
+        // Se è un'email, usa il valore come email secondaria o ignora
+        // Per ora, trattiamo come telefono vuoto
+        phone = null;
+        console.log('Signup - treating as email, phone set to null');
+      }
+      
+      // Validazione: email e password sono sempre obbligatori, username anche
       if(!email || !pass || !uname) return showErr("Completa tutti i campi obbligatori.");
+      
+      // Se è stato inserito un telefono, validalo
+      if (phone && !validatePhone(phone)) {
+        console.log('Phone validation failed for:', phone);
+        return showErr("Formato numero di telefono non valido.");
+      }
+      
+      console.log('Signup validation passed - phone:', phone, 'email:', email);
       
       try{
         // se presente, verifica univocità telefono tramite indice /byPhone/<num>
@@ -444,20 +611,62 @@
           }
         }
 
+        // Crea utente con email e password (questo è sempre richiesto per Firebase Auth)
         const cred = await auth.createUserWithEmailAndPassword(email, pass);
         const uid = cred.user.uid;
+        
+        // Crea il profilo utente
         await db.ref("users/"+uid+"/profile").set({ email, phone: phone || null, name: uname });
         
-        // indici rapidi per lookup
-        const updates = {};
-        updates["byEmail/"+email.toLowerCase()] = uid;
-        if (phone) updates["byPhone/"+phone] = uid;
-        await db.ref().update(updates);
+        // Usa onAuthStateChanged per assicurarsi che l'utente sia completamente autenticato
+        await new Promise((resolve, reject) => {
+          const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            if (user && user.uid === uid) {
+              unsubscribe();
+              try {
+                // Crea gli indici ora che l'utente è completamente autenticato
+                const updates = {};
+                updates["byEmail/"+encodeEmailForFirebase(email)] = uid;
+                if (phone) {
+                  updates["byPhone/"+phone] = uid;
+                  console.log('Storing phone in byPhone index:', phone, 'for UID:', uid);
+                }
+                console.log('About to create indices:', updates);
+                await db.ref().update(updates);
+                console.log('Indices created successfully:', updates);
+                resolve();
+              } catch(e) {
+                console.warn('Errore creando indici:', e);
+                resolve(); // Continua comunque
+              }
+            }
+          });
+          
+          // Timeout di sicurezza
+          setTimeout(() => {
+            unsubscribe();
+            resolve();
+          }, 2000);
+        });
         
-        location.replace('index.html');
-      }catch(e){ 
-        showErr(mapErr(e)); 
-      }
+                 console.log('Signup completed successfully, redirecting...');
+         location.replace('index.html');
+       }catch(e){ 
+         console.error('Signup error:', e);
+         showErr(mapErr(e)); 
+       }
+    });
+
+    // Debounce per evitare cambiamenti troppo rapidi
+    let inputTimeout;
+    
+    // Rilevamento automatico del tipo di input
+    document.getElementById('phone').addEventListener('input', (e) => {
+      clearTimeout(inputTimeout);
+      inputTimeout = setTimeout(() => {
+        const inputType = detectInputType(e.target.value);
+        updateInputUI(inputType);
+      }, 150); // Aspetta 150ms prima di cambiare
     });
 
     // Enter key per registrazione

@@ -132,6 +132,56 @@
       animation: fadeIn 0.8s ease-out;
     }
     
+    .input-container {
+      display: flex;
+      gap: 8px;
+      transition: all 0.3s ease;
+    }
+    
+    .country-select {
+      flex: 0 0 auto;
+      width: 100px;
+      height: 48px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      outline: none;
+      opacity: 0;
+      transform: translateX(-20px);
+      overflow: hidden;
+      max-width: 0;
+    }
+    
+    .country-select.show {
+      opacity: 1;
+      transform: translateX(0);
+      max-width: 100px;
+    }
+    
+    .country-select:hover {
+      border-color: var(--accent);
+    }
+    
+    .country-select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    #identifier {
+      flex: 1;
+      transition: all 0.3s ease;
+    }
+    
+    #identifierLabel {
+      transition: all 0.3s ease;
+    }
+    
     .field:nth-child(2) { animation-delay: 0.1s; }
     .field:nth-child(3) { animation-delay: 0.2s; }
     
@@ -365,8 +415,22 @@
     <div class="title">Interlinked</div>
 
     <div class="field">
-      <label for="identifier">E-mail o Telefono</label>
-      <input id="identifier" type="text" placeholder="es. mario@esempio.com o +39333..." autocomplete="email tel" />
+      <label for="identifier" id="identifierLabel">E-mail</label>
+      <div class="input-container">
+        <select id="countryCode" class="country-select" style="display: none;">
+          <option value="+39">🇮🇹 +39</option>
+          <option value="+1">🇺🇸 +1</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+33">🇫🇷 +33</option>
+          <option value="+49">🇩🇪 +49</option>
+          <option value="+34">🇪🇸 +34</option>
+          <option value="+7">🇷🇺 +7</option>
+          <option value="+86">🇨🇳 +86</option>
+          <option value="+81">🇯🇵 +81</option>
+          <option value="+91">🇮🇳 +91</option>
+        </select>
+        <input id="identifier" type="text" placeholder="es. mario@esempio.com" autocomplete="email tel" />
+      </div>
     </div>
 
     <div class="field">
@@ -432,7 +496,74 @@
       const m = trimmed.match(/^\+?[0-9]{6,}$/);
       if (!m) return "";
       if (trimmed.startsWith('+')) return trimmed;
-      return trimmed;
+      return '+' + trimmed;
+    }
+
+    // Codifica email per essere usata come chiave Firebase (rimuove caratteri non validi)
+    function encodeEmailForFirebase(email) {
+      return email.toLowerCase().replace(/[.#$/[\]]/g, '_');
+    }
+
+    // Decodifica email da chiave Firebase
+    function decodeEmailFromFirebase(encodedEmail) {
+      return encodedEmail.replace(/_/g, '.');
+    }
+
+    // Rileva se l'input è un'email o un telefono
+    function detectInputType(input) {
+      if (!input) return 'email';
+      
+      const trimmed = input.trim();
+      
+      // Se contiene @ è sicuramente un'email
+      if (trimmed.includes('@')) return 'email';
+      
+      // Se inizia con + seguito da numeri è un telefono
+      if (/^\+\d+/.test(trimmed)) return 'phone';
+      
+      // Se contiene solo numeri (almeno 7 cifre) è un telefono
+      if (/^\d{7,}$/.test(trimmed.replace(/\s/g, ''))) return 'phone';
+      
+      // Se contiene solo numeri, +, spazi, trattini, parentesi ed è abbastanza lungo
+      if (/^[\d\s\+\-\(\)]+$/.test(trimmed) && trimmed.replace(/\D/g, '').length >= 7) return 'phone';
+      
+      // Default: email
+      return 'email';
+    }
+
+    // Aggiorna l'UI in base al tipo di input rilevato
+    function updateInputUI(inputType) {
+      const label = document.getElementById('identifierLabel');
+      const countrySelect = document.getElementById('countryCode');
+      const identifier = document.getElementById('identifier');
+      
+      // Evita cambiamenti inutili
+      const currentType = countrySelect.classList.contains('show') ? 'phone' : 'email';
+      if (currentType === inputType) return;
+      
+      if (inputType === 'phone') {
+        // Animazione per passare a modalità telefono
+        label.textContent = 'Telefono';
+        identifier.placeholder = 'es. 3331234567';
+        
+        // Mostra il dropdown con animazione
+        countrySelect.style.display = 'block';
+        // Forza un reflow per assicurarsi che l'elemento sia visibile
+        countrySelect.offsetHeight;
+        countrySelect.classList.add('show');
+      } else {
+        // Animazione per passare a modalità email
+        label.textContent = 'E-mail';
+        identifier.placeholder = 'es. mario@esempio.com';
+        
+        // Nascondi il dropdown con animazione
+        countrySelect.classList.remove('show');
+        setTimeout(() => {
+          if (!countrySelect.classList.contains('show')) {
+            countrySelect.style.display = 'none';
+          }
+        }, 300);
+      }
     }
 
     // Mappa errori Firebase in italiano
@@ -464,6 +595,32 @@
       document.getElementById('error').style.display = 'none';
     }
 
+    // Debug function to check what's in the database
+    async function debugDatabase() {
+      try {
+        console.log('=== DEBUG DATABASE ===');
+        
+        // Check byPhone index
+        const byPhoneSnap = await db.ref('byPhone').once('value');
+        console.log('byPhone entries:', byPhoneSnap.val());
+        
+        // Check byEmail index  
+        const byEmailSnap = await db.ref('byEmail').once('value');
+        console.log('byEmail entries:', byEmailSnap.val());
+        
+        // Check users
+        const usersSnap = await db.ref('users').once('value');
+        console.log('users entries:', usersSnap.val());
+        
+        console.log('=== END DEBUG ===');
+      } catch(e) {
+        console.error('Debug error:', e);
+      }
+    }
+
+    // Add debug button (temporary)
+    window.debugDB = debugDatabase;
+
     // Toggle password visibility
     (function(){
       const btn = document.getElementById('toggleEye');
@@ -488,45 +645,76 @@
       showErr('');
       const identifier = document.getElementById('identifier').value.trim();
       const password = document.getElementById('password').value;
+      const countryCode = document.getElementById('countryCode').value;
 
       if (!identifier || !password) return showErr('Inserisci tutti i campi.');
 
       try {
         let email = identifier;
+        const inputType = detectInputType(identifier);
         
-        // Se sembra un telefono, prova a risolverlo
-        if (identifier.includes('+') || /^\d+$/.test(identifier.replace(/\s/g, ''))) {
-          const phone = normalizePhone(identifier);
+        // Se è un telefono, prova a risolverlo
+        if (inputType === 'phone') {
+          let phone = identifier;
+          // Se non ha il +, aggiungi il prefisso del paese
+          if (!phone.startsWith('+')) {
+            phone = countryCode + phone;
+          }
+          phone = normalizePhone(phone);
+          
           if (phone) {
-            // Prima prova a cercare nell'indice byPhone
+            let emailFound = false;
+            // Cerca solo nell'indice byPhone (unico metodo autorizzato)
             try {
+              console.log('Cercando telefono:', phone);
+              
+              // Prova anche senza il prefisso + per vedere se è quello il problema
+              const phoneWithoutPlus = phone.startsWith('+') ? phone.substring(1) : phone;
+              console.log('Provo anche senza +:', phoneWithoutPlus);
+              
               const phoneSnap = await db.ref('byPhone/'+phone).once('value');
+              console.log('Risultato ricerca telefono con +:', phoneSnap.exists(), phoneSnap.val());
+              
+              // Se non trovato con +, prova senza +
+              if (!phoneSnap.exists()) {
+                const phoneSnapNoPlus = await db.ref('byPhone/'+phoneWithoutPlus).once('value');
+                console.log('Risultato ricerca telefono senza +:', phoneSnapNoPlus.exists(), phoneSnapNoPlus.val());
+                
+                if (phoneSnapNoPlus.exists()) {
+                  const uid = phoneSnapNoPlus.val();
+                  const emailSnap = await db.ref('users/'+uid+'/profile/email').once('value');
+                  if (emailSnap.exists()) {
+                    email = emailSnap.val();
+                    emailFound = true;
+                    console.log('Email trovata (senza +):', email);
+                  }
+                }
+              }
+              
               if (phoneSnap.exists()) {
                 const uid = phoneSnap.val();
                 const emailSnap = await db.ref('users/'+uid+'/profile/email').once('value');
                 if (emailSnap.exists()) {
                   email = emailSnap.val();
+                  emailFound = true;
+                  console.log('Email trovata:', email);
                 }
               }
             } catch(e) {
-              // Se l'indice non funziona, prova a cercare nei profili
-              try {
-                const usersSnap = await db.ref('users').orderByChild('profile/phone').equalTo(phone).once('value');
-                const users = usersSnap.val();
-                if (users) {
-                  const uid = Object.keys(users)[0];
-                  const userEmail = users[uid]?.profile?.email;
-                  if (userEmail) {
-                    email = userEmail;
-                  }
-                }
-              } catch(e2) {
-                console.warn('Errore cercando telefono:', e2);
-              }
+              console.warn('Errore cercando telefono nell\'indice:', e);
             }
+            
+            // Se non abbiamo trovato l'email, mostra errore
+            if (!emailFound) {
+              console.log('Telefono non trovato nel database');
+              return showErr('Numero di telefono non trovato. Verifica il numero o usa l\'email.');
+            }
+          } else {
+            return showErr('Numero di telefono non valido.');
           }
         }
 
+        // Ora autentica con l'email (originale o risolta dal telefono)
         await auth.signInWithEmailAndPassword(email, password);
         showSuccess('Accesso effettuato!');
         setTimeout(() => location.replace('index.html'), 1000);
@@ -572,15 +760,25 @@
     // Reset password
     document.getElementById('resetPassword').addEventListener('click', async ()=>{
       const identifier = document.getElementById('identifier').value.trim();
+      const countryCode = document.getElementById('countryCode').value;
       if (!identifier) return showErr('Inserisci prima la tua email o telefono.');
       
       try {
         let email = identifier;
+        const inputType = detectInputType(identifier);
         
-        // Se sembra un telefono, prova a risolverlo
-        if (identifier.includes('+') || /^\d+$/.test(identifier.replace(/\s/g, ''))) {
-          const phone = normalizePhone(identifier);
+        // Se è un telefono, prova a risolverlo
+        if (inputType === 'phone') {
+          let phone = identifier;
+          // Se non ha il +, aggiungi il prefisso del paese
+          if (!phone.startsWith('+')) {
+            phone = countryCode + phone;
+          }
+          phone = normalizePhone(phone);
+          
           if (phone) {
+            let emailFound = false;
+            // Cerca solo nell'indice byPhone (unico metodo autorizzato)
             try {
               const phoneSnap = await db.ref('byPhone/'+phone).once('value');
               if (phoneSnap.exists()) {
@@ -588,11 +786,18 @@
                 const emailSnap = await db.ref('users/'+uid+'/profile/email').once('value');
                 if (emailSnap.exists()) {
                   email = emailSnap.val();
+                  emailFound = true;
                 }
               }
             } catch(e) {
               console.warn('Errore cercando telefono per reset:', e);
             }
+            
+            if (!emailFound) {
+              return showErr('Numero di telefono non trovato. Verifica il numero o usa l\'email.');
+            }
+          } else {
+            return showErr('Numero di telefono non valido.');
           }
         }
         
@@ -604,6 +809,18 @@
       }
     });
 
+    // Debounce per evitare cambiamenti troppo rapidi
+    let inputTimeout;
+    
+    // Rilevamento automatico del tipo di input
+    document.getElementById('identifier').addEventListener('input', (e) => {
+      clearTimeout(inputTimeout);
+      inputTimeout = setTimeout(() => {
+        const inputType = detectInputType(e.target.value);
+        updateInputUI(inputType);
+      }, 150); // Aspetta 150ms prima di cambiare
+    });
+
     // Enter key per login
     document.addEventListener('keydown', (e)=>{
       if (e.key === 'Enter') {
@@ -613,3 +830,4 @@
   </script>
 </body>
 </html>
+

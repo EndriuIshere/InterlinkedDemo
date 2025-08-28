@@ -210,6 +210,20 @@
     }
     .name { font-size:15px; font-weight:600; }
     .roomtag { font-size:12px; color:var(--text-muted); word-break:break-all; }
+    .last-access {
+      font-size:11px;
+      transition: color 0.3s ease;
+    }
+    .last-access.online {
+      color: var(--success);
+      font-weight: 600;
+    }
+    .last-access.recent {
+      color: var(--accent);
+    }
+    .last-access.offline {
+      color: var(--text-muted);
+    }
     .actions { display:flex; gap:8px; }
     .actionbtn {
       border:none;
@@ -445,6 +459,7 @@
     // ---------- AUTH & STATE ----------
     let currentUid = null, currentName = "Utente";
     let contactsRef = null, requestsRef = null;
+    let lastAccessInterval = null;
 
     auth.onAuthStateChanged(async user=>{
       if(!user){ location.replace("login.html"); return; }
@@ -460,6 +475,7 @@
 
       initContacts();
       initRequests();
+      startLastAccessTracking();
 
       // Se apri con ?add=UID ricevi automaticamente richiesta (invio)
       const params = new URLSearchParams(location.search);
@@ -487,6 +503,69 @@
       suggestedStatus.textContent = "Non caricati";
     });
 
+    // ---------- LAST ACCESS TRACKING ----------
+    function startLastAccessTracking() {
+      // Update last access time every 30 seconds
+      if (lastAccessInterval) clearInterval(lastAccessInterval);
+      
+      // Update immediately
+      updateLastAccess();
+      
+      // Then update every 30 seconds
+      lastAccessInterval = setInterval(updateLastAccess, 30000);
+    }
+
+    function updateLastAccess() {
+      if (!currentUid) return;
+      
+      const now = Date.now();
+      db.ref(`users/${currentUid}/lastAccess`).set(now).catch(e => {
+        console.warn('Errore aggiornando lastAccess:', e);
+      });
+    }
+
+    function stopLastAccessTracking() {
+      if (lastAccessInterval) {
+        clearInterval(lastAccessInterval);
+        lastAccessInterval = null;
+      }
+    }
+
+    function formatLastAccess(timestamp) {
+      if (!timestamp) return "Mai";
+      
+      const now = Date.now();
+      const diff = now - timestamp;
+      
+      // Less than 1 minute
+      if (diff < 60000) return "Ora";
+      
+      // Less than 1 hour
+      if (diff < 3600000) {
+        const minutes = Math.floor(diff / 60000);
+        return `${minutes}m fa`;
+      }
+      
+      // Less than 24 hours
+      if (diff < 86400000) {
+        const hours = Math.floor(diff / 3600000);
+        return `${hours}h fa`;
+      }
+      
+      // Less than 7 days
+      if (diff < 604800000) {
+        const days = Math.floor(diff / 86400000);
+        return `${days}g fa`;
+      }
+      
+      // More than 7 days
+      const date = new Date(timestamp);
+      return date.toLocaleDateString('it-IT', { 
+        day: '2-digit', 
+        month: '2-digit' 
+      });
+    }
+
     // ---------- CONTATTI ----------
     function escapeHtml(str){
       if(!str) return "";
@@ -502,12 +581,17 @@
       const div = document.createElement("div");
       div.className="contact";
       div.dataset.id = id;
+      div.dataset.room = data.room;
+      
+      // Get the other user's UID from the room
+      const otherUid = getOtherUidFromRoom(data.room);
+      
       div.innerHTML = `
         <div class="contact-info">
           <div class="avatar"><i data-lucide="user"></i></div>
           <div>
             <div class="name">${escapeHtml(data.name)}</div>
-            <div class="roomtag"></div>
+            <div class="roomtag last-access" data-uid="${otherUid}">Caricamento...</div>
           </div>
         </div>
         <div class="actions">
@@ -515,14 +599,78 @@
           <button class="actionbtn delBtn" title="Elimina"><i data-lucide="trash-2"></i></button>
         </div>
       `;
+      
       div.querySelector(".contact-info").addEventListener("click", ()=> location.href="room.html#"+data.room);
       div.querySelector(".editBtn").addEventListener("click", (e)=>{ e.stopPropagation(); renameContact(id, data.name); });
       div.querySelector(".delBtn").addEventListener("click", (e)=>{ e.stopPropagation(); deleteContact(id, data.name); });
 
+      // Load last access time for this contact
+      if (otherUid) {
+        loadLastAccessForContact(div, otherUid);
+      }
+
       return div;
     }
 
+    function getOtherUidFromRoom(room) {
+      if (!room || !room.startsWith('room_')) return null;
+      
+      const parts = room.split('_');
+      if (parts.length < 3) return null;
+      
+      const uid1 = parts[1];
+      const uid2 = parts[2];
+      
+      // Return the UID that's not the current user
+      return uid1 === currentUid ? uid2 : uid1;
+    }
+
+    function loadLastAccessForContact(contactElement, otherUid) {
+      if (!otherUid) return;
+      
+      const lastAccessEl = contactElement.querySelector('.last-access');
+      
+      // Listen for last access updates
+      const lastAccessRef = db.ref(`users/${otherUid}/lastAccess`);
+      
+      const updateLastAccessDisplay = (snapshot) => {
+        const timestamp = snapshot.val();
+        const formatted = formatLastAccess(timestamp);
+        lastAccessEl.textContent = formatted;
+        
+        // Add visual indicator for recent activity
+        if (timestamp) {
+          const now = Date.now();
+          const diff = now - timestamp;
+          
+          // Remove old classes
+          lastAccessEl.classList.remove('online', 'recent', 'offline');
+          
+          if (diff < 300000) { // 5 minutes
+            lastAccessEl.classList.add('online');
+          } else if (diff < 3600000) { // 1 hour
+            lastAccessEl.classList.add('recent');
+          } else {
+            lastAccessEl.classList.add('offline');
+          }
+        }
+      };
+      
+      // Set up listener
+      lastAccessRef.on('value', updateLastAccessDisplay);
+      
+      // Store reference for cleanup
+      contactElement._lastAccessRef = lastAccessRef;
+    }
+
     function initContacts(){
+      // Clean up existing last access listeners
+      contactsEl.querySelectorAll('.contact').forEach(contact => {
+        if (contact._lastAccessRef) {
+          contact._lastAccessRef.off();
+        }
+      });
+      
       contactsEl.innerHTML = "";
       if(contactsRef) contactsRef.off();
       contactsRef = db.ref("users/"+currentUid+"/contacts");
@@ -535,6 +683,10 @@
       contactsRef.on("child_changed", s=>{
         const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
         if(el){
+          // Clean up old listener
+          if (el._lastAccessRef) {
+            el._lastAccessRef.off();
+          }
           const newNode = renderContact(s.key, s.val());
           el.replaceWith(newNode);
           lucide.createIcons();
@@ -542,7 +694,13 @@
       });
       contactsRef.on("child_removed", s=>{
         const el = contactsEl.querySelector(`[data-id="${s.key}"]`);
-        if(el) el.remove();
+        if(el) {
+          // Clean up listener before removing
+          if (el._lastAccessRef) {
+            el._lastAccessRef.off();
+          }
+          el.remove();
+        }
         updateFriendsCount();
       });
     }
@@ -848,7 +1006,7 @@
       const phones = (person.phoneNumbers || []).map(p => normalizePhone(p.value||'')).filter(Boolean);
       try {
         for (const em of emails){
-          const snap = await db.ref('byEmail/'+em).once('value');
+          const snap = await db.ref('byEmail/'+encodeEmailForFirebase(em)).once('value');
           if (snap.exists()) return snap.val();
         }
         for (const ph of phones){
@@ -865,7 +1023,17 @@
       const m = trimmed.match(/^\+?[0-9]{6,}$/);
       if (!m) return "";
       if (trimmed.startsWith('+')) return trimmed;
-      return trimmed;
+      return '+' + trimmed;
+    }
+
+    // Codifica email per essere usata come chiave Firebase (rimuove caratteri non validi)
+    function encodeEmailForFirebase(email) {
+      return email.toLowerCase().replace(/[.#$/[\]]/g, '_');
+    }
+
+    // Decodifica email da chiave Firebase
+    function decodeEmailFromFirebase(encodedEmail) {
+      return encodedEmail.replace(/_/g, '.');
     }
 
     // Fetch & render con People API (richiede gapi.client *e* token impostato)
@@ -1117,8 +1285,16 @@
     // ---------- icone e cleanup ----------
     lucide.createIcons();
     window.addEventListener("beforeunload", ()=>{
+      stopLastAccessTracking();
       if(contactsRef) contactsRef.off();
       if(requestsRef) requestsRef.off();
+      
+      // Clean up all last access listeners
+      contactsEl.querySelectorAll('.contact').forEach(contact => {
+        if (contact._lastAccessRef) {
+          contact._lastAccessRef.off();
+        }
+      });
     });
 
     // ---------- Themed UI helpers ----------

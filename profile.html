@@ -308,7 +308,7 @@
 
     <div class="field">
       <div class="label">Telefono</div>
-      <input id="phone" class="input" type="tel" placeholder="Es. +393331234567" />
+      <div id="phone" class="readonly"></div>
     </div>
 
 
@@ -382,7 +382,17 @@
       const m = trimmed.match(/^\+?[0-9]{6,}$/);
       if (!m) return "";
       if (trimmed.startsWith('+')) return trimmed;
-      return trimmed;
+      return '+' + trimmed;
+    }
+
+    // Codifica email per essere usata come chiave Firebase (rimuove caratteri non validi)
+    function encodeEmailForFirebase(email) {
+      return email.toLowerCase().replace(/[.#$/[\]]/g, '_');
+    }
+
+    // Decodifica email da chiave Firebase
+    function decodeEmailFromFirebase(encodedEmail) {
+      return encodedEmail.replace(/_/g, '.');
     }
 
 
@@ -400,36 +410,13 @@
       db.ref("users/"+user.uid+"/profile").on("value", snap => {
         const profile = snap.val() || {};
         username.value = profile.name || "";
-        phone.value = profile.phone || "";
+        phone.textContent = profile.phone || "";
       });
 
       document.getElementById("saveBtn").onclick = async () => {
         const val = username.value.trim() || "Utente";
-        const phoneRaw = phone.value.trim();
-        const norm = normalizePhone(phoneRaw);
         try {
-          // controllo univocità solo se valorizzato
-          if (norm) {
-            const m = await db.ref('byPhone/'+norm).once('value');
-            const existingUid = m.val();
-            if (existingUid && existingUid !== user.uid) {
-              alert('Numero già in uso da un altro account.');
-              return;
-            }
-          }
-
-          // leggi phone precedente per pulire indice se necessario
-          const prevSnap = await db.ref('users/'+user.uid+'/profile/phone').once('value');
-          const prev = prevSnap.val();
-
-          await db.ref("users/" + user.uid + "/profile").update({ name: val, phone: norm || null });
-
-          const updates = {};
-          // set nuovo indice
-          if (norm) updates['byPhone/'+norm] = user.uid;
-          // rimuovi vecchio indice se cambiato
-          if (prev && prev !== norm) updates['byPhone/'+prev] = null;
-          await db.ref().update(updates);
+          await db.ref("users/" + user.uid + "/profile").update({ name: val });
           showToast("Profilo salvato!");
         } catch(err){ alert('Errore salvataggio: '+ err.message); }
       };
@@ -471,19 +458,49 @@
       document.getElementById("deleteBtn").onclick = async () => {
         const ok = await appConfirm({ title:'Elimina', message:'Sei sicuro di voler eliminare l\'account?' });
         if(ok){
-          // pulizia indici email/phone
           try {
+            showToast("Eliminazione in corso...");
+            
+            // pulizia indici email/phone - usa rimozioni individuali invece di update root
             const ps = await db.ref('users/'+user.uid+'/profile').once('value');
             const p = ps.val() || {};
-            const updates = {};
-            if (p.email) updates['byEmail/'+String(p.email).toLowerCase()] = null;
-            if (p.phone) updates['byPhone/'+p.phone] = null;
-            await db.ref().update(updates);
-          } catch(_){}
-          await db.ref("users/" + user.uid).remove();
-          await user.delete();
-          showToast("Account eliminato!");
-          location.replace("signup.html");
+            
+            // Rimuovi indici individualmente per evitare problemi di permessi
+            const indexPromises = [];
+            if (p.email) {
+              indexPromises.push(
+                db.ref('byEmail/'+encodeEmailForFirebase(p.email)).remove()
+                  .catch(err => console.warn('Errore rimozione indice email:', err))
+              );
+            }
+            if (p.phone) {
+              indexPromises.push(
+                db.ref('byPhone/'+p.phone).remove()
+                  .catch(err => console.warn('Errore rimozione indice telefono:', err))
+              );
+            }
+            
+            // Esegui tutte le rimozioni degli indici in parallelo (non bloccare se falliscono)
+            await Promise.allSettled(indexPromises);
+            
+            // rimuovi dati utente dal database
+            await db.ref("users/" + user.uid).remove();
+            
+            // elimina utente da Firebase Auth
+            await user.delete();
+            
+            showToast("Account eliminato con successo!");
+            setTimeout(() => location.replace("signup.html"), 1000);
+          } catch(err) {
+            console.error('Errore eliminazione account:', err);
+            let errorMsg = 'Errore durante l\'eliminazione: ';
+            if (err.code === 'auth/requires-recent-login') {
+              errorMsg += 'Devi effettuare nuovamente il login per eliminare l\'account.';
+            } else {
+              errorMsg += err.message;
+            }
+            alert(errorMsg);
+          }
         }
       };
     });
