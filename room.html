@@ -127,12 +127,21 @@
     }
     .presence-on { 
       background:var(--success) !important; 
-      animation: pulse 2s infinite;
+      animation: pulse 1.5s infinite;
+      box-shadow:0 0 12px rgba(16, 185, 129, 0.6);
     }
     
     @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
+      0%, 100% { 
+        opacity: 1; 
+        transform: scale(1);
+        box-shadow:0 0 12px rgba(16, 185, 129, 0.6);
+      }
+      50% { 
+        opacity: 0.6; 
+        transform: scale(1.2);
+        box-shadow:0 0 20px rgba(16, 185, 129, 0.8);
+      }
     }
     
     .kebab { 
@@ -1077,7 +1086,7 @@
         }
         // Periodic heartbeat
         updateHeartbeat();
-        const hb = setInterval(updateHeartbeat, 5000);
+        const hb = setInterval(updateHeartbeat, 4000);
 
         // Cleanup on disconnect and unload
         myRef.onDisconnect().remove();
