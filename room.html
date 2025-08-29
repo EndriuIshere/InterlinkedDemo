@@ -963,7 +963,88 @@
           RT.db.ref('rooms/'+ROOM+'/events').push({
             type:'hover', payload:{x,y,r:RADIUS,c: COLOR}, client: CLIENT, ts: Date.now()
           });
+          
+          // Trigger notification for friends in this room
+          triggerFriendNotification();
         }catch(_){ /* ignore */ }
+      }
+    }
+    
+    // Track last notification time to avoid spam (5 minutes per friend)
+    let lastNotificationTimes = {};
+    
+    async function triggerFriendNotification() {
+      try {
+        const user = auth.currentUser;
+        if (!user) return;
+        
+        const now = Date.now();
+        const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
+        
+        // Get all users in this room
+        const presenceRef = db.ref('rooms/'+ROOM+'/presence');
+        const presenceSnap = await presenceRef.once('value');
+        const presence = presenceSnap.val() || {};
+        
+        // Get current user's friends
+        const friendsSnap = await db.ref('users/'+user.uid+'/contacts').once('value');
+        const friends = friendsSnap.val() || {};
+        
+        // Find friends who are in this room
+        const friendsInRoom = [];
+        for (const [friendId, friendData] of Object.entries(friends)) {
+          if (friendData && friendData.room === ROOM) {
+            // Check if this friend is currently online in the room
+            for (const [clientId, clientData] of Object.entries(presence)) {
+              if (clientId !== CLIENT && clientData && clientData.ts) {
+                const timeDiff = now - clientData.ts;
+                if (timeDiff <= 10000) { // Online in last 10 seconds
+                  // This could be our friend - we need to check if the client belongs to the friend
+                  // For now, we'll assume any other client in the room is a friend
+                  const notificationKey = `${friendId}_${ROOM}`;
+                  if (!lastNotificationTimes[notificationKey] || 
+                      (now - lastNotificationTimes[notificationKey]) > fiveMinutes) {
+                    
+                    friendsInRoom.push({
+                      id: friendId,
+                      name: friendData.name || 'Friend',
+                      notificationKey: notificationKey
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        // Send notifications to friends
+        for (const friend of friendsInRoom) {
+          await sendNotificationToFriend(friend.id, friend.name);
+          lastNotificationTimes[friend.notificationKey] = now;
+        }
+        
+      } catch (error) {
+        console.error('Error triggering friend notification:', error);
+      }
+    }
+    
+    async function sendNotificationToFriend(friendId, friendName) {
+      try {
+        // Create a notification entry in Firebase Database
+        // The friend's web app will listen for these notifications
+        await db.ref('notifications/'+friendId).push({
+          type: 'friend_activity',
+          friendName: friendName,
+          roomId: ROOM,
+          fromUserId: auth.currentUser.uid,
+          timestamp: Date.now(),
+          read: false
+        });
+        
+        console.log('Notification sent to friend:', friendName);
+        
+      } catch (error) {
+        console.error('Error sending notification to friend:', error);
       }
     }
     const menuEl = $('#menu');
@@ -1127,6 +1208,7 @@
     requestAnimationFrame(drawFrame);
     initRealtime();
     initPresence();
+    initNotificationListener();
     // default tone will load after first gesture (primeAudio)
     
     // Load saved settings
@@ -1192,6 +1274,120 @@
         setInterval(prune, CLEANUP_INTERVAL_MS);
       }catch(_){ /* ignore */ }
     })();
+
+    // ---------- NOTIFICATION LISTENER FOR ROOM ----------
+    let roomNotificationListener = null;
+    let roomLastNotificationTimes = {};
+    
+    function initNotificationListener() {
+      const user = auth.currentUser;
+      if (!user) return;
+      
+      // Listen for notifications directed to this user
+      roomNotificationListener = db.ref('notifications/'+user.uid);
+      
+      roomNotificationListener.on('child_added', async (snap) => {
+        const notification = snap.val();
+        if (!notification || notification.read) return;
+        
+        try {
+          // Check if this is a friend activity notification
+          if (notification.type === 'friend_activity' && notification.friendName) {
+            const now = Date.now();
+            const fiveMinutes = 5 * 60 * 1000;
+            const notificationKey = `${notification.fromUserId}_${notification.roomId}`;
+            
+            // Check throttling (max 1 notification per 5 minutes per friend)
+            if (roomLastNotificationTimes[notificationKey] && 
+                (now - roomLastNotificationTimes[notificationKey]) < fiveMinutes) {
+              // Mark as read and skip
+              await snap.ref.update({ read: true });
+              return;
+            }
+            
+            // Show notification
+            await showRoomNotification(notification);
+            
+            // Mark as read
+            await snap.ref.update({ read: true });
+            
+            // Update throttling
+            roomLastNotificationTimes[notificationKey] = now;
+          }
+        } catch (error) {
+          console.error('Error handling room notification:', error);
+        }
+      });
+    }
+    
+    async function showRoomNotification(notification) {
+      try {
+        // Request notification permission if not already granted
+        if (Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+        
+        if (Notification.permission === 'granted') {
+          // Create the notification
+          const notif = new Notification("👀 Someone's looking for you", {
+            body: `${notification.friendName} is looking for you 👀`,
+            icon: '/logo.png', // Your app icon
+            badge: '/logo.png',
+            tag: 'interlinked-friend-activity',
+            requireInteraction: false,
+            silent: false
+          });
+          
+          // Handle notification click
+          notif.onclick = () => {
+            // If it's a different room, navigate to it
+            if (notification.roomId !== ROOM) {
+              window.location.href = `room.html#${notification.roomId}`;
+            }
+            notif.close();
+          };
+          
+          // Auto-close after 5 seconds
+          setTimeout(() => {
+            notif.close();
+          }, 5000);
+          
+          // Trigger vibration if available
+          triggerRoomNotificationVibration();
+          
+          console.log('Room notification shown for:', notification.friendName);
+        } else {
+          console.log('Notification permission denied');
+        }
+      } catch (error) {
+        console.error('Error showing room notification:', error);
+      }
+    }
+    
+    function triggerRoomNotificationVibration() {
+      try {
+        // Try Android vibration first
+        if (window.Android && window.Android.vibratePattern) {
+          const pattern = [0, 200, 100, 200, 100, 200]; // Multiple vibration pattern
+          window.Android.vibratePattern(pattern);
+          return;
+        }
+        
+        // Fallback to Web Vibration API if available
+        if ('vibrate' in navigator) {
+          navigator.vibrate([0, 200, 100, 200, 100, 200]);
+        }
+      } catch (error) {
+        console.log('Room vibration not available:', error);
+      }
+    }
+    
+    // Clean up notification listener when page unloads
+    window.addEventListener('beforeunload', () => {
+      if (roomNotificationListener) {
+        roomNotificationListener.off();
+      }
+    });
   </script>
 </body>
 </html>

@@ -472,6 +472,7 @@
       initContacts();
       initRequests();
       startLastAccessTracking();
+      initNotificationListener();
 
       // Se apri con ?add=UID ricevi automaticamente richiesta (invio)
       const params = new URLSearchParams(location.search);
@@ -1267,6 +1268,132 @@
     }
     function appConfirm(opts){ return appDialog({ ...opts, showInput:false }); }
     function appPrompt(opts){ return appDialog({ ...opts, showInput:true }); }
+
+    // ---------- NOTIFICATION PERMISSION SETUP ----------
+    async function requestNotificationPermission() {
+      try {
+        // Request notification permission
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          console.log('Notification permission granted');
+        } else {
+          console.log('Notification permission denied');
+        }
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+      }
+    }
+
+    // ---------- WEB NOTIFICATION LISTENER ----------
+    let notificationListener = null;
+    let lastNotificationTimes = {};
+    
+    function initNotificationListener() {
+      if (!currentUid) return;
+      
+      // Listen for notifications directed to this user
+      notificationListener = db.ref('notifications/'+currentUid);
+      
+      notificationListener.on('child_added', async (snap) => {
+        const notification = snap.val();
+        if (!notification || notification.read) return;
+        
+        try {
+          // Check if this is a friend activity notification
+          if (notification.type === 'friend_activity' && notification.friendName) {
+            const now = Date.now();
+            const fiveMinutes = 5 * 60 * 1000;
+            const notificationKey = `${notification.fromUserId}_${notification.roomId}`;
+            
+            // Check throttling (max 1 notification per 5 minutes per friend)
+            if (lastNotificationTimes[notificationKey] && 
+                (now - lastNotificationTimes[notificationKey]) < fiveMinutes) {
+              // Mark as read and skip
+              await snap.ref.update({ read: true });
+              return;
+            }
+            
+            // Show notification
+            await showWebNotification(notification);
+            
+            // Mark as read
+            await snap.ref.update({ read: true });
+            
+            // Update throttling
+            lastNotificationTimes[notificationKey] = now;
+          }
+        } catch (error) {
+          console.error('Error handling notification:', error);
+        }
+      });
+    }
+    
+    async function showWebNotification(notification) {
+      try {
+        // Request notification permission if not already granted
+        if (Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+        
+        if (Notification.permission === 'granted') {
+          // Create the notification
+          const notif = new Notification("👀 Someone's looking for you", {
+            body: `${notification.friendName} is looking for you 👀`,
+            icon: '/logo.png', // Your app icon
+            badge: '/logo.png',
+            tag: 'interlinked-friend-activity',
+            requireInteraction: false,
+            silent: false
+          });
+          
+          // Handle notification click
+          notif.onclick = () => {
+            // Open the room
+            window.location.href = `room.html#${notification.roomId}`;
+            notif.close();
+          };
+          
+          // Auto-close after 5 seconds
+          setTimeout(() => {
+            notif.close();
+          }, 5000);
+          
+          // Trigger vibration if available
+          triggerNotificationVibration();
+          
+          console.log('Web notification shown for:', notification.friendName);
+        } else {
+          console.log('Notification permission denied');
+        }
+      } catch (error) {
+        console.error('Error showing web notification:', error);
+      }
+    }
+    
+    function triggerNotificationVibration() {
+      try {
+        // Try Android vibration first
+        if (window.Android && window.Android.vibratePattern) {
+          const pattern = [0, 200, 100, 200, 100, 200]; // Multiple vibration pattern
+          window.Android.vibratePattern(pattern);
+          return;
+        }
+        
+        // Fallback to Web Vibration API if available
+        if ('vibrate' in navigator) {
+          navigator.vibrate([0, 200, 100, 200, 100, 200]);
+        }
+      } catch (error) {
+        console.log('Vibration not available:', error);
+      }
+    }
+    
+    // Clean up notification listener when page unloads
+    window.addEventListener('beforeunload', () => {
+      if (notificationListener) {
+        notificationListener.off();
+      }
+    });
 
     /*
       NOTE TECNICHE E SUGGERIMENTI DI DEBUG:
