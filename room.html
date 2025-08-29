@@ -1209,6 +1209,12 @@
     initRealtime();
     initPresence();
     initNotificationListener();
+    
+    // Request notification permission on room start
+    requestRoomNotificationPermission();
+    
+    // Get and log FCM token
+    getFCMToken();
     // default tone will load after first gesture (primeAudio)
     
     // Load saved settings
@@ -1324,6 +1330,10 @@
       try {
         // Request notification permission if not already granted
         if (Notification.permission === 'default') {
+          // First, try to request permission through Android interface (for Android 13+)
+          if (window.Android && window.Android.requestNotificationPermission) {
+            window.Android.requestNotificationPermission();
+          }
           await Notification.requestPermission();
         }
         
@@ -1382,6 +1392,53 @@
       }
     }
     
+    // Request notification permission for room
+    async function requestRoomNotificationPermission() {
+      try {
+        // First, try to request permission through Android interface (for Android 13+)
+        if (window.Android && window.Android.requestNotificationPermission) {
+          window.Android.requestNotificationPermission();
+        }
+        
+        // Also request web notification permission
+        if (Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+      } catch (error) {
+        console.error('Error requesting room notification permission:', error);
+      }
+    }
+
+    // ---------- FCM TOKEN INTEGRATION ----------
+    async function getFCMToken() {
+      try {
+        // Try to get FCM token from Android interface first
+        if (window.Android && window.Android.getFCMToken) {
+          const token = window.Android.getFCMToken();
+          if (token) {
+            console.log('FCM Token from Android:', token);
+            return token;
+          }
+        }
+        
+        // Fallback: try to get from Firebase Messaging if available
+        if (typeof firebase !== 'undefined' && firebase.messaging) {
+          const messaging = firebase.messaging();
+          const token = await messaging.getToken();
+          if (token) {
+            console.log('FCM Token from Firebase:', token);
+            return token;
+          }
+        }
+        
+        console.log('No FCM token available');
+        return null;
+      } catch (error) {
+        console.error('Error getting FCM token:', error);
+        return null;
+      }
+    }
+
     // Clean up notification listener when page unloads
     window.addEventListener('beforeunload', () => {
       if (roomNotificationListener) {

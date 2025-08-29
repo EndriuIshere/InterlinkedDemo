@@ -473,6 +473,12 @@
       initRequests();
       startLastAccessTracking();
       initNotificationListener();
+      
+      // Request notification permission on app start
+      requestNotificationPermission();
+      
+      // Get and log FCM token
+      getFCMToken();
 
       // Se apri con ?add=UID ricevi automaticamente richiesta (invio)
       const params = new URLSearchParams(location.search);
@@ -1272,7 +1278,12 @@
     // ---------- NOTIFICATION PERMISSION SETUP ----------
     async function requestNotificationPermission() {
       try {
-        // Request notification permission
+        // First, try to request permission through Android interface (for Android 13+)
+        if (window.Android && window.Android.requestNotificationPermission) {
+          window.Android.requestNotificationPermission();
+        }
+        
+        // Also request web notification permission
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
           console.log('Notification permission granted');
@@ -1281,6 +1292,36 @@
         }
       } catch (error) {
         console.error('Error requesting notification permission:', error);
+      }
+    }
+
+    // ---------- FCM TOKEN INTEGRATION ----------
+    async function getFCMToken() {
+      try {
+        // Try to get FCM token from Android interface first
+        if (window.Android && window.Android.getFCMToken) {
+          const token = window.Android.getFCMToken();
+          if (token) {
+            console.log('FCM Token from Android:', token);
+            return token;
+          }
+        }
+        
+        // Fallback: try to get from Firebase Messaging if available
+        if (typeof firebase !== 'undefined' && firebase.messaging) {
+          const messaging = firebase.messaging();
+          const token = await messaging.getToken();
+          if (token) {
+            console.log('FCM Token from Firebase:', token);
+            return token;
+          }
+        }
+        
+        console.log('No FCM token available');
+        return null;
+      } catch (error) {
+        console.error('Error getting FCM token:', error);
+        return null;
       }
     }
 
