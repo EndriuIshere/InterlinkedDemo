@@ -981,11 +981,6 @@
         const now = Date.now();
         const fiveMinutes = 5 * 60 * 1000; // 5 minutes in milliseconds
         
-        // Get all users in this room
-        const presenceRef = db.ref('rooms/'+ROOM+'/presence');
-        const presenceSnap = await presenceRef.once('value');
-        const presence = presenceSnap.val() || {};
-        
         // Get current user's friends
         const friendsSnap = await db.ref('users/'+user.uid+'/contacts').once('value');
         const friends = friendsSnap.val() || {};
@@ -994,25 +989,20 @@
         const friendsInRoom = [];
         for (const [friendId, friendData] of Object.entries(friends)) {
           if (friendData && friendData.room === ROOM) {
-            // Check if this friend is currently online in the room
-            for (const [clientId, clientData] of Object.entries(presence)) {
-              if (clientId !== CLIENT && clientData && clientData.ts) {
-                const timeDiff = now - clientData.ts;
-                if (timeDiff <= 10000) { // Online in last 10 seconds
-                  // This could be our friend - we need to check if the client belongs to the friend
-                  // For now, we'll assume any other client in the room is a friend
-                  const notificationKey = `${friendId}_${ROOM}`;
-                  if (!lastNotificationTimes[notificationKey] || 
-                      (now - lastNotificationTimes[notificationKey]) > fiveMinutes) {
-                    
-                    friendsInRoom.push({
-                      id: friendId,
-                      name: friendData.name || 'Friend',
-                      notificationKey: notificationKey
-                    });
-                  }
-                }
-              }
+            const notificationKey = `${friendId}_${ROOM}`;
+            
+            // Check throttling BEFORE adding to list
+            if (!lastNotificationTimes[notificationKey] || 
+                (now - lastNotificationTimes[notificationKey]) > fiveMinutes) {
+              
+              friendsInRoom.push({
+                id: friendId,
+                name: friendData.name || 'Friend',
+                notificationKey: notificationKey
+              });
+              
+              // Update throttling immediately to prevent multiple calls
+              lastNotificationTimes[notificationKey] = now;
             }
           }
         }
@@ -1020,7 +1010,6 @@
         // Send notifications to friends
         for (const friend of friendsInRoom) {
           await sendNotificationToFriend(friend.id, friend.name);
-          lastNotificationTimes[friend.notificationKey] = now;
         }
         
       } catch (error) {
@@ -1041,10 +1030,51 @@
           read: false
         });
         
+        // Also send FCM push notification for offline users
+        await sendFCMPushNotification(friendId, friendName);
+        
         console.log('Notification sent to friend:', friendName);
         
       } catch (error) {
         console.error('Error sending notification to friend:', error);
+      }
+    }
+    
+    async function sendFCMPushNotification(friendId, friendName) {
+      try {
+        // Get the friend's FCM token from their profile
+        const friendProfileSnap = await db.ref('users/'+friendId+'/fcmToken').once('value');
+        const fcmToken = friendProfileSnap.val();
+        
+        if (!fcmToken) {
+          console.log('No FCM token found for friend:', friendName);
+          return;
+        }
+        
+        // Send FCM push notification via Firebase Functions or your backend
+        // For now, we'll store the push notification request in Firebase Database
+        // A Firebase Function or your backend should listen for these and send actual FCM messages
+        await db.ref('pushNotifications').push({
+          to: fcmToken,
+          notification: {
+            title: "👀 Someone's looking for you",
+            body: `${friendName} is looking for you 👀`,
+            icon: '/logo.png'
+          },
+          data: {
+            type: 'friend_activity',
+            roomId: ROOM,
+            fromUserId: auth.currentUser.uid,
+            friendName: friendName
+          },
+          timestamp: Date.now(),
+          sent: false
+        });
+        
+        console.log('FCM push notification queued for:', friendName);
+        
+      } catch (error) {
+        console.error('Error sending FCM push notification:', error);
       }
     }
     const menuEl = $('#menu');
