@@ -494,6 +494,64 @@
     const auth = firebase.auth();
     const db = firebase.database();
 
+    // Gestisci il risultato del redirect OAuth (se presente)
+    auth.getRedirectResult().then((result) => {
+      if (result && result.user) {
+        // L'utente è tornato da un redirect OAuth
+        const user = result.user;
+        const email = user.email;
+        const name = user.displayName || 'Utente';
+        
+        // Aggiorna il profilo e l'indice byEmail
+        const updates = {};
+        updates['users/'+user.uid+'/profile'] = { email, name };
+        updates['byEmail/'+email.toLowerCase()] = user.uid;
+        
+        // Aggiungi anche la versione codificata per compatibilità
+        const encodedEmail = encodeEmailForFirebase(email);
+        if (encodedEmail !== email.toLowerCase()) {
+          updates['byEmail/'+encodedEmail] = user.uid;
+        }
+        
+        try {
+          db.ref().update(updates).then(() => {
+            showSuccess('Accesso effettuato!');
+            setTimeout(() => location.replace('index.html'), 1000);
+          });
+        } catch(e) {
+          console.warn('Errore aggiornando profilo:', e);
+          // Procedi comunque con il redirect
+          showSuccess('Accesso effettuato!');
+          setTimeout(() => location.replace('index.html'), 1000);
+        }
+      }
+    }).catch((error) => {
+      console.error('Errore nel redirect OAuth:', error);
+      // Non mostrare errori qui per evitare confusione
+    });
+
+    // Timeout di sicurezza per evitare white screen infinito
+    let loginTimeout;
+    function startLoginTimeout() {
+      if (loginTimeout) clearTimeout(loginTimeout);
+      loginTimeout = setTimeout(() => {
+        console.warn('Login timeout - ripristino UI');
+        const btn = document.getElementById('googleLogin');
+        if (btn) {
+          btn.textContent = '↪︎ Continua con Google';
+          btn.disabled = false;
+        }
+        showErr('Timeout login. Riprova.');
+      }, 30000); // 30 secondi
+    }
+
+    function clearLoginTimeout() {
+      if (loginTimeout) {
+        clearTimeout(loginTimeout);
+        loginTimeout = null;
+      }
+    }
+
     // Normalizza numeri: rimuove spazi/separatori, mantiene + e cifre
     function normalizePhone(input){
       if (!input) return "";
@@ -512,6 +570,46 @@
     // Decodifica email da chiave Firebase
     function decodeEmailFromFirebase(encodedEmail) {
       return encodedEmail.replace(/_/g, '.');
+    }
+
+    // Cerca email nell'indice byEmail, gestendo sia email codificate che non codificate
+    async function findUserByEmail(email) {
+      if (!email) return null;
+      
+      const emailLower = email.toLowerCase();
+      console.log('findUserByEmail - cercando:', emailLower);
+      
+      // Prima prova con l'email originale (non codificata)
+      try {
+        console.log('Provo con email non codificata:', emailLower);
+        const emailSnap = await db.ref('byEmail/' + emailLower).once('value');
+        if (emailSnap.exists()) {
+          console.log('✅ Email trovata (non codificata):', emailLower, 'UID:', emailSnap.val());
+          return emailSnap.val();
+        } else {
+          console.log('❌ Email non trovata (non codificata):', emailLower);
+        }
+      } catch(e) {
+        console.warn('Errore cercando email non codificata:', e);
+      }
+      
+      // Se non trovata, prova con l'email codificata
+      try {
+        const encodedEmail = encodeEmailForFirebase(emailLower);
+        console.log('Provo con email codificata:', encodedEmail);
+        const encodedSnap = await db.ref('byEmail/' + encodedEmail).once('value');
+        if (encodedSnap.exists()) {
+          console.log('✅ Email trovata (codificata):', encodedEmail, 'UID:', encodedSnap.val());
+          return encodedSnap.val();
+        } else {
+          console.log('❌ Email non trovata (codificata):', encodedEmail);
+        }
+      } catch(e) {
+        console.warn('Errore cercando email codificata:', e);
+      }
+      
+      console.log('❌ Email non trovata in nessun formato');
+      return null;
     }
 
     // Rileva se l'input è un'email o un telefono
@@ -581,6 +679,8 @@
       if (c === "auth/network-request-failed") return "Errore di rete";
       if (c === "auth/popup-closed-by-user") return "Popup chiuso";
       if (c === "auth/cancelled-popup-request") return "Operazione annullata";
+      if (c === "auth/popup-blocked") return "Popup bloccato dal browser";
+      if (c === "auth/operation-not-allowed") return "Operazione non consentita";
       return e?.message || "Errore sconosciuto";
     }
 
@@ -717,6 +817,15 @@
           } else {
             return showErr('Numero di telefono non valido.');
           }
+        } else if (inputType === 'email') {
+          // Se è un'email, verifica che esista nel database prima di tentare il login
+          console.log('Verificando email nel database:', identifier);
+          const uid = await findUserByEmail(identifier);
+          if (!uid) {
+            console.log('Email non trovata nel database:', identifier);
+            return showErr('Email non trovata. Verifica l\'indirizzo o registrati.');
+          }
+          console.log('Email trovata nel database, UID:', uid);
         }
 
         // Ora autentica con l'email (originale o risolta dal telefono)
@@ -732,33 +841,107 @@
     // Login con Google
     document.getElementById('googleLogin').addEventListener('click', async ()=>{
       showErr('');
+      showSuccess('');
+      
       try {
-        const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await auth.signInWithPopup(provider);
+        // Mostra stato di caricamento
+        const btn = document.getElementById('googleLogin');
+        btn.textContent = 'Caricamento...';
+        btn.disabled = true;
         
-        // Aggiorna il profilo con i dati di Google se necessario
-        if (result.user) {
+        // Avvia timeout di sicurezza
+        startLoginTimeout();
+        
+        const provider = new firebase.auth.GoogleAuthProvider();
+        
+        // Configura provider per evitare problemi di popup
+        provider.setCustomParameters({
+          prompt: 'select_account'
+        });
+        
+        // Prova prima con popup
+        let result;
+        try {
+          result = await auth.signInWithPopup(provider);
+          // Se arriviamo qui, il popup è riuscito
+          clearLoginTimeout();
+        } catch(popupError) {
+          console.warn("Popup fallito, provo con redirect:", popupError);
+          
+          // Se popup fallisce, usa redirect (più robusto)
+          if (popupError.code === 'auth/popup-blocked' || 
+              popupError.code === 'auth/popup-closed-by-user' ||
+              popupError.code === 'auth/cancelled-popup-request') {
+            
+            try {
+              result = await auth.signInWithRedirect(provider);
+              // Con redirect, la pagina si ricaricherà automaticamente
+              return; // Esci qui perché la pagina si ricaricherà
+            } catch(redirectError) {
+              console.error("Anche redirect fallito:", redirectError);
+              clearLoginTimeout();
+              throw redirectError;
+            }
+          } else {
+            clearLoginTimeout();
+            throw popupError;
+          }
+        }
+        
+        // Se arriviamo qui, il popup è riuscito
+        if (result && result.user) {
           const user = result.user;
           const email = user.email;
           const name = user.displayName || 'Utente';
           
-          // Aggiorna il profilo e l'indice byEmail
+          // Aggiorna il profilo e l'indice byEmail (entrambi i formati per compatibilità)
           const updates = {};
           updates['users/'+user.uid+'/profile'] = { email, name };
           updates['byEmail/'+email.toLowerCase()] = user.uid;
+          
+          // Aggiungi anche la versione codificata per compatibilità con utenti esistenti
+          const encodedEmail = encodeEmailForFirebase(email);
+          if (encodedEmail !== email.toLowerCase()) {
+            updates['byEmail/'+encodedEmail] = user.uid;
+          }
           
           try {
             await db.ref().update(updates);
           } catch(e) {
             console.warn('Errore aggiornando profilo:', e);
           }
+          
+          showSuccess('Accesso effettuato!');
+          setTimeout(() => location.replace('index.html'), 1000);
         }
         
-        showSuccess('Accesso effettuato!');
-        setTimeout(() => location.replace('index.html'), 1000);
       } catch(e){
         console.error('Errore Google login:', e);
-        showErr('Errore: ' + mapErr(e));
+        
+        // Gestisci errori specifici
+        let errorMessage = 'Errore sconosciuto';
+        
+        if (e.code === 'auth/popup-blocked') {
+          errorMessage = 'Popup bloccato dal browser. Clicca di nuovo o disabilita il blocco popup.';
+        } else if (e.code === 'auth/popup-closed-by-user') {
+          errorMessage = 'Popup chiuso. Riprova.';
+        } else if (e.code === 'auth/cancelled-popup-request') {
+          errorMessage = 'Operazione annullata. Riprova.';
+        } else if (e.code === 'auth/network-request-failed') {
+          errorMessage = 'Errore di rete. Verifica la connessione.';
+        } else if (e.code === 'auth/operation-not-allowed') {
+          errorMessage = 'Login Google non abilitato. Contatta il supporto.';
+        } else {
+          errorMessage = mapErr(e);
+        }
+        
+        showErr('Errore: ' + errorMessage);
+      } finally {
+        // Pulisci sempre il timeout e ripristina il bottone
+        clearLoginTimeout();
+        const btn = document.getElementById('googleLogin');
+        btn.textContent = '↪︎ Continua con Google';
+        btn.disabled = false;
       }
     });
 
@@ -804,6 +987,14 @@
           } else {
             return showErr('Numero di telefono non valido.');
           }
+        } else if (inputType === 'email') {
+          // Se è un'email, verifica che esista nel database prima di inviare il reset
+          const uid = await findUserByEmail(identifier);
+          if (!uid) {
+            console.log('Email non trovata nel database per reset:', identifier);
+            return showErr('Email non trovata. Verifica l\'indirizzo o registrati.');
+          }
+          console.log('Email trovata nel database per reset, UID:', uid);
         }
         
         await auth.sendPasswordResetEmail(email);

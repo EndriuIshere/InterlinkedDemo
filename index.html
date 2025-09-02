@@ -1062,7 +1062,7 @@
       }
     }
 
-    // Inizializza tokenClient (GIS)
+    // Inizializza tokenClient (GIS) con gestione robusta dei popup
     function ensureTokenClient() {
       if(tokenClient) return;
       tokenClient = google.accounts.oauth2.initTokenClient({
@@ -1071,10 +1071,23 @@
         callback: async (resp) => {
           if(resp.error){
             console.error("Token error callback:", resp);
-            suggestedStatus.textContent = "Permesso non concesso";
+            if(resp.error === 'popup_closed_by_user') {
+              suggestedStatus.textContent = "Popup chiuso. Clicca di nuovo 'Consenti e Carica'";
+              showToast("Popup chiuso. Clicca di nuovo per riprovare");
+            } else if(resp.error === 'access_denied') {
+              suggestedStatus.textContent = "Accesso negato. Riprova più tardi";
+              showToast("Accesso negato. Riprova più tardi");
+            } else if(resp.error === 'popup_blocked') {
+              suggestedStatus.textContent = "Popup bloccato dal browser";
+              showToast("Popup bloccato. Disabilita il blocco popup e riprova");
+            } else {
+              suggestedStatus.textContent = "Errore autorizzazione: " + resp.error;
+              showToast("Errore autorizzazione: " + resp.error);
+            }
             consentiCaricaBtn.disabled = false;
             return;
           }
+          
           // Se abbiamo access_token, proviamo a impostarlo in gapi client; se non è possibile usiamo fallback.
           try {
             if (resp.access_token) {
@@ -1105,6 +1118,7 @@
           } catch(e){
             console.error("Errore People API:", e);
             suggestedStatus.textContent = "Errore People API";
+            showToast("Errore caricamento contatti. Riprova più tardi");
           } finally {
             // Nascondi comunque il pop-up dopo il tentativo (richiesto)
             if(consentBox) consentBox.style.display = "none";
@@ -1114,8 +1128,8 @@
       });
     }
 
-    // Azione unico bottone: Consenti e Carica
-    consentiCaricaBtn.addEventListener("click", async () => {
+    // Funzione per gestire il popup in modo robusto
+    async function requestGoogleConsent() {
       suggestedStatus.textContent = "Apertura autorizzazione...";
       consentiCaricaBtn.disabled = true;
 
@@ -1130,15 +1144,48 @@
 
       try {
         ensureTokenClient();
-        // User gesture → meno probabile che il popup venga bloccato
-        tokenClient.requestAccessToken({ prompt: 'consent' });
-        // La callback gestisce fetch, stato e chiusura pop-up
+        
+        // Prova prima con popup (più user-friendly)
+        try {
+          tokenClient.requestAccessToken({ prompt: 'consent' });
+        } catch(popupError) {
+          console.warn("Popup fallito, provo con redirect:", popupError);
+          
+          // Se il popup fallisce, prova con redirect (più robusto)
+          try {
+            tokenClient.requestAccessToken({ prompt: 'consent', hint: 'redirect' });
+          } catch(redirectError) {
+            console.error("Anche redirect fallito:", redirectError);
+            
+            // Ultimo tentativo: mostra istruzioni manuali e riprova
+            suggestedStatus.textContent = "Popup bloccato. Clicca di nuovo o disabilita il blocco popup";
+            consentiCaricaBtn.disabled = false;
+            
+            // Mostra un messaggio più dettagliato
+            showToast("Popup bloccato. Clicca di nuovo o disabilita il blocco popup del browser");
+            
+            // Aggiungi un pulsante di riprova
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'btn';
+            retryBtn.style.marginTop = '8px';
+            retryBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Riprova';
+            retryBtn.addEventListener('click', () => {
+              retryBtn.remove();
+              requestGoogleConsent();
+            });
+            consentBox.appendChild(retryBtn);
+            lucide.createIcons();
+          }
+        }
       } catch(err){
-        console.error("requestAccessToken error:", err);
-        suggestedStatus.textContent = "Popup bloccato o errore";
+        console.error("Errore generale requestAccessToken:", err);
+        suggestedStatus.textContent = "Errore apertura autorizzazione";
         consentiCaricaBtn.disabled = false;
       }
-    });
+    }
+
+    // Azione unico bottone: Consenti e Carica
+    consentiCaricaBtn.addEventListener("click", requestGoogleConsent);
 
     // ---------- Render suggeriti / gestione accept già gestita altrove ----------
     function renderSuggested(person){
