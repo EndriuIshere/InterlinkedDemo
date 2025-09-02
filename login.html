@@ -459,7 +459,13 @@
     
     <button id="googleLogin" class="btn google">↪︎ Continua con Google</button>
 
-    <div class="muted">Non hai un account? <a href="signup.html" class="link">Registrati</a></div>
+         <div class="muted">Non hai un account? <a href="signup.html" class="link">Registrati</a></div>
+     <div class="muted" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">
+       💡 <strong>Nota:</strong> Se ti sei registrato con Google, usa "Continua con Google" per accedere
+     </div>
+     <div class="muted" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+       🔧 <strong>Problemi?</strong> Se hai problemi con l'accesso, prova prima con Google
+     </div>
     
     <div class="links-section">
       <div class="muted"><span id="resetPassword" class="link">Cambia password</span></div>
@@ -572,6 +578,8 @@
       return encodedEmail.replace(/_/g, '.');
     }
 
+
+
     // Cerca email nell'indice byEmail, gestendo sia email codificate che non codificate
     async function findUserByEmail(email) {
       if (!email) return null;
@@ -579,21 +587,7 @@
       const emailLower = email.toLowerCase();
       console.log('findUserByEmail - cercando:', emailLower);
       
-      // Prima prova con l'email originale (non codificata)
-      try {
-        console.log('Provo con email non codificata:', emailLower);
-        const emailSnap = await db.ref('byEmail/' + emailLower).once('value');
-        if (emailSnap.exists()) {
-          console.log('✅ Email trovata (non codificata):', emailLower, 'UID:', emailSnap.val());
-          return emailSnap.val();
-        } else {
-          console.log('❌ Email non trovata (non codificata):', emailLower);
-        }
-      } catch(e) {
-        console.warn('Errore cercando email non codificata:', e);
-      }
-      
-      // Se non trovata, prova con l'email codificata
+      // Prova prima con l'email codificata (sicura per Firebase)
       try {
         const encodedEmail = encodeEmailForFirebase(emailLower);
         console.log('Provo con email codificata:', encodedEmail);
@@ -606,6 +600,22 @@
         }
       } catch(e) {
         console.warn('Errore cercando email codificata:', e);
+      }
+      
+      // Se non trovata, prova con l'email originale (non codificata) - solo se non ha caratteri problematici
+      if (!emailLower.includes('.') && !emailLower.includes('#') && !emailLower.includes('$') && !emailLower.includes('[') && !emailLower.includes(']')) {
+        try {
+          console.log('Provo con email non codificata:', emailLower);
+          const emailSnap = await db.ref('byEmail/' + emailLower).once('value');
+          if (emailSnap.exists()) {
+            console.log('✅ Email trovata (non codificata):', emailLower, 'UID:', emailSnap.val());
+            return emailSnap.val();
+          } else {
+            console.log('❌ Email non trovata (non codificata):', emailLower);
+          }
+        } catch(e) {
+          console.warn('Errore cercando email non codificata:', e);
+        }
       }
       
       console.log('❌ Email non trovata in nessun formato');
@@ -826,6 +836,59 @@
             return showErr('Email non trovata. Verifica l\'indirizzo o registrati.');
           }
           console.log('Email trovata nel database, UID:', uid);
+          
+          // Verifica se l'utente ha un account email/password o solo OAuth
+          try {
+            const userRecord = await auth.fetchSignInMethodsForEmail(identifier);
+            console.log('Metodi di autenticazione disponibili:', userRecord);
+            
+            if (userRecord.length === 0) {
+              // L'email esiste nel database ma non in Firebase Auth
+              // Questo può succedere se l'utente è stato creato solo nel database
+              // o se c'è un problema di sincronizzazione
+              console.warn('Email trovata nel database ma non in Firebase Auth');
+              
+              // Prova a verificare se l'utente esiste in Firebase Auth con un metodo diverso
+              try {
+                // Prova a fare sign in con credenziali vuote per vedere l'errore specifico
+                await auth.signInWithEmailAndPassword(identifier, 'dummy_password_for_test');
+              } catch(testError) {
+                console.log('Test error code:', testError.code);
+                
+                if (testError.code === 'auth/user-not-found') {
+                  // L'utente non esiste in Firebase Auth, ma esiste nel database
+                  // Questo indica un problema di sincronizzazione
+                  return showErr('Account trovato ma non autenticabile. Usa "Continua con Google" per ricreare l\'account.');
+                } else if (testError.code === 'auth/wrong-password') {
+                  // L'utente esiste in Firebase Auth ma la password è sbagliata
+                  // Questo è normale, procedi con il login
+                  console.log('Utente trovato in Firebase Auth, procedo con login normale');
+                  return; // Esci dalla verifica e procedi con il login
+                } else if (testError.code === 'auth/invalid-credential') {
+                  // Credenziali non valide, ma l'utente esiste
+                  console.log('Utente trovato in Firebase Auth, procedo con login normale');
+                  return; // Esci dalla verifica e procedi con il login
+                }
+              }
+              
+              // Se arriviamo qui, c'è un problema sconosciuto
+              return showErr('Problema con l\'account. Contatta il supporto.');
+            }
+            
+            // Se l'utente ha solo provider OAuth (Google), non può usare email/password
+            if (userRecord.length === 1 && userRecord[0] !== 'password') {
+              return showErr('Questo account è stato creato con Google. Usa "Continua con Google" per accedere.');
+            }
+            
+            // Se l'utente ha password, procedi normalmente
+            if (userRecord.includes('password')) {
+              console.log('Account supporta email/password, procedo con login');
+            }
+            
+          } catch(authError) {
+            console.warn('Errore verificando metodi di autenticazione:', authError);
+            // Procedi comunque con il tentativo di login
+          }
         }
 
         // Ora autentica con l'email (originale o risolta dal telefono)
@@ -905,8 +968,26 @@
             updates['byEmail/'+encodedEmail] = user.uid;
           }
           
+          // Verifica se esiste già un utente nel database con questa email
+          try {
+            const existingUser = await findUserByEmail(email);
+            if (existingUser && existingUser !== user.uid) {
+              console.log('Utente esistente trovato con email diversa, aggiorno i riferimenti');
+              // Aggiorna i riferimenti per mantenere la compatibilità
+              updates['byEmail/'+email.toLowerCase()] = existingUser;
+              if (encodedEmail !== email.toLowerCase()) {
+                updates['byEmail/'+encodedEmail] = existingUser;
+              }
+              // Aggiorna anche il profilo dell'utente esistente
+              updates['users/'+existingUser+'/profile'] = { email, name };
+            }
+          } catch(e) {
+            console.warn('Errore verificando utente esistente:', e);
+          }
+          
           try {
             await db.ref().update(updates);
+            console.log('Profilo aggiornato con successo');
           } catch(e) {
             console.warn('Errore aggiornando profilo:', e);
           }
