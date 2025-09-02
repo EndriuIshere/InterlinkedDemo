@@ -392,6 +392,53 @@
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
   <script>
+    // Gestisci il risultato del redirect OAuth (se presente)
+    // Questo viene eseguito quando la pagina si ricarica dopo un redirect OAuth
+    window.addEventListener('load', async () => {
+      try {
+        // Controlla se siamo tornati da un redirect OAuth
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          console.log('OAuth redirect rilevato, gestisco il token...');
+          
+          // Estrai il token dall'URL hash
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const accessToken = hashParams.get('access_token');
+          const error = hashParams.get('error');
+          
+          if (error) {
+            console.error('Errore OAuth redirect:', error);
+            showToast('Errore autorizzazione: ' + error);
+            return;
+          }
+          
+          if (accessToken) {
+            console.log('Token OAuth ricevuto via redirect, lunghezza:', accessToken.length);
+            
+            // Imposta il token e procedi con il caricamento contatti
+            __LAST_ACCESS_TOKEN = accessToken;
+            
+            // Pulisci l'URL hash
+            window.location.hash = '';
+            
+            // Mostra stato e carica contatti
+            if (suggestedStatus) {
+              suggestedStatus.textContent = "Caricamento contatti...";
+            }
+            
+            try {
+              // Prova a caricare i contatti con il token ricevuto
+              await fetchAndRenderPeopleWithGapi();
+              showToast('Autorizzazione completata! Contatti caricati.');
+            } catch (e) {
+              console.error('Errore caricamento contatti dopo redirect OAuth:', e);
+              showToast('Errore caricamento contatti. Riprova.');
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Errore gestione redirect OAuth:', e);
+      }
+    });
     // ---------- CONFIG FIREBASE ----------
     firebase.initializeApp({
       apiKey: "AIzaSyDgqD_R_L-qgIaFGB_c9qJRID0KV9jgLPY",
@@ -1062,50 +1109,65 @@
       }
     }
 
-    // Inizializza tokenClient (GIS) con gestione robusta dei popup
+        // Inizializza tokenClient (GIS) con gestione robusta dei popup
     function ensureTokenClient() {
       if(tokenClient) return;
+      
+      // Configura il token client con gestione robusta degli errori
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: PEOPLE_SCOPE,
         callback: async (resp) => {
+          console.log("OAuth callback ricevuto:", resp);
+          
           if(resp.error){
             console.error("Token error callback:", resp);
-            if(resp.error === 'popup_closed_by_user') {
-              suggestedStatus.textContent = "Popup chiuso. Clicca di nuovo 'Consenti e Carica'";
-              showToast("Popup chiuso. Clicca di nuovo per riprovare");
-            } else if(resp.error === 'access_denied') {
-              suggestedStatus.textContent = "Accesso negato. Riprova più tardi";
-              showToast("Accesso negato. Riprova più tardi");
-            } else if(resp.error === 'popup_blocked') {
-              suggestedStatus.textContent = "Popup bloccato dal browser";
-              showToast("Popup bloccato. Disabilita il blocco popup e riprova");
-            } else {
-              suggestedStatus.textContent = "Errore autorizzazione: " + resp.error;
-              showToast("Errore autorizzazione: " + resp.error);
+            
+            // Gestione specifica degli errori
+            switch(resp.error) {
+              case 'popup_closed_by_user':
+                suggestedStatus.textContent = "Popup chiuso. Clicca di nuovo 'Consenti e Carica'";
+                showToast("Popup chiuso. Clicca di nuovo per riprovare");
+                break;
+              case 'access_denied':
+                suggestedStatus.textContent = "Accesso negato. Riprova più tardi";
+                showToast("Accesso negato. Riprova più tardi");
+                break;
+              case 'popup_blocked':
+                suggestedStatus.textContent = "Popup bloccato dal browser";
+                showToast("Popup bloccato. Disabilita il blocco popup e riprova");
+                break;
+              case 'popup_closed':
+                suggestedStatus.textContent = "Popup chiuso. Clicca di nuovo 'Consenti e Carica'";
+                showToast("Popup chiuso. Clicca di nuovo per riprovare");
+                break;
+              default:
+                suggestedStatus.textContent = "Errore autorizzazione: " + resp.error;
+                showToast("Errore autorizzazione: " + resp.error);
             }
+            
             consentiCaricaBtn.disabled = false;
             return;
           }
           
-          // Se abbiamo access_token, proviamo a impostarlo in gapi client; se non è possibile usiamo fallback.
+          // Se abbiamo access_token, proviamo a impostarlo in gapi client
           try {
             if (resp.access_token) {
               __LAST_ACCESS_TOKEN = resp.access_token;
+              console.log("Access token ricevuto, lunghezza:", resp.access_token.length);
             }
 
-            // Preferiamo usare gapi.client.setToken se presente (più pulito)
+            // Preferiamo usare gapi.client.setToken se presente
             if (gapi && gapi.client && typeof gapi.client.setToken === 'function' && resp.access_token){
               try {
                 gapi.client.setToken({ access_token: resp.access_token });
-                // Pulizia fallback token perché ora gapi gestisce internamente
-                __LAST_ACCESS_TOKEN = null;
+                console.log("Token impostato in gapi.client");
+                __LAST_ACCESS_TOKEN = null; // Pulizia fallback token
               } catch(inner){
                 console.warn("gapi.client.setToken ha fallito, useremo fallback token:", inner);
                 // rimane __LAST_ACCESS_TOKEN valorizzato
               }
             } else {
-              // gapi.client.setToken non disponibile, useremo fallback header Authorization
               console.warn("gapi.client.setToken non disponibile; useremo Authorization header fallback.");
             }
           } catch(e){
@@ -1114,13 +1176,14 @@
 
           // Prova a chiamare l'API e renderizzare
           try {
+            suggestedStatus.textContent = "Caricamento contatti...";
             await fetchAndRenderPeopleWithGapi();
           } catch(e){
             console.error("Errore People API:", e);
-            suggestedStatus.textContent = "Errore People API";
+            suggestedStatus.textContent = "Errore caricamento contatti. Riprova più tardi";
             showToast("Errore caricamento contatti. Riprova più tardi");
           } finally {
-            // Nascondi comunque il pop-up dopo il tentativo (richiesto)
+            // Nascondi comunque il pop-up dopo il tentativo
             if(consentBox) consentBox.style.display = "none";
             consentiCaricaBtn.disabled = false;
           }
@@ -1145,24 +1208,60 @@
       try {
         ensureTokenClient();
         
+        // Timeout di sicurezza per evitare attese infinite
+        let authTimeout = setTimeout(() => {
+          console.warn("Timeout autorizzazione - ripristino UI");
+          suggestedStatus.textContent = "Timeout autorizzazione. Riprova.";
+          consentiCaricaBtn.disabled = false;
+        }, 30000); // 30 secondi
+        
+        // Funzione per pulire il timeout
+        const clearAuthTimeout = () => {
+          if (authTimeout) {
+            clearTimeout(authTimeout);
+            authTimeout = null;
+          }
+        };
+        
         // Prova prima con popup (più user-friendly)
         try {
+          console.log("Tentativo popup OAuth...");
           tokenClient.requestAccessToken({ prompt: 'consent' });
+          
+          // Se arriviamo qui, il popup è stato avviato con successo
+          // Il timeout verrà pulito nel callback
+          console.log("Popup OAuth avviato con successo");
+          
         } catch(popupError) {
           console.warn("Popup fallito, provo con redirect:", popupError);
+          clearAuthTimeout();
           
           // Se il popup fallisce, prova con redirect (più robusto)
           try {
+            console.log("Tentativo redirect OAuth...");
             tokenClient.requestAccessToken({ prompt: 'consent', hint: 'redirect' });
+            
+            // Con redirect, la pagina si ricaricherà automaticamente
+            console.log("Redirect OAuth avviato");
+            return; // Esci qui perché la pagina si ricaricherà
+            
           } catch(redirectError) {
             console.error("Anche redirect fallito:", redirectError);
             
-            // Ultimo tentativo: mostra istruzioni manuali e riprova
-            suggestedStatus.textContent = "Popup bloccato. Clicca di nuovo o disabilita il blocco popup";
-            consentiCaricaBtn.disabled = false;
+            // Gestisci errori specifici
+            let errorMessage = "Errore sconosciuto";
             
-            // Mostra un messaggio più dettagliato
-            showToast("Popup bloccato. Clicca di nuovo o disabilita il blocco popup del browser");
+            if (redirectError.message && redirectError.message.includes('popup')) {
+              errorMessage = "Popup bloccato dal browser";
+            } else if (redirectError.message && redirectError.message.includes('network')) {
+              errorMessage = "Errore di rete. Verifica la connessione.";
+            } else if (redirectError.message && redirectError.message.includes('timeout')) {
+              errorMessage = "Timeout connessione. Riprova.";
+            }
+            
+            suggestedStatus.textContent = errorMessage;
+            showToast(errorMessage + ". Clicca di nuovo per riprovare");
+            consentiCaricaBtn.disabled = false;
             
             // Aggiungi un pulsante di riprova
             const retryBtn = document.createElement('button');
@@ -1177,6 +1276,18 @@
             lucide.createIcons();
           }
         }
+        
+        // Aggiungi listener per pulire il timeout quando l'autorizzazione è completata
+        const originalCallback = tokenClient.callback;
+        tokenClient.callback = async (resp) => {
+          clearAuthTimeout(); // Pulisci il timeout
+          
+          // Chiama il callback originale
+          if (originalCallback) {
+            await originalCallback(resp);
+          }
+        };
+        
       } catch(err){
         console.error("Errore generale requestAccessToken:", err);
         suggestedStatus.textContent = "Errore apertura autorizzazione";
