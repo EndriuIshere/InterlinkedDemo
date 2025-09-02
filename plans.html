@@ -509,9 +509,14 @@
     document.getElementById('proButton').addEventListener('click', async () => {
       if (currentPlan.type === 'pro') return;
       
-      // Redirect to Stripe Payment Link (super simple!)
-      // Replace this URL with your actual Stripe Payment Link
-      window.open('https://buy.stripe.com/test_9B69AS1Ji2wT5439lDbZe00', '_blank');
+      // Check if we're in Android app and use native interface
+      if (window.Android && window.Android.openStripePayment) {
+        // Use Android interface to open Stripe payment
+        window.Android.openStripePayment('https://buy.stripe.com/test_9B69AS1Ji2wT5439lDbZe00');
+      } else {
+        // Fallback for web browser
+        window.open('https://buy.stripe.com/test_9B69AS1Ji2wT5439lDbZe00', '_blank');
+      }
     });
 
     // Cancel subscription (for switching to free)

@@ -632,6 +632,8 @@
                 // Crea gli indici ora che l'utente è completamente autenticato
                 const updates = {};
                 updates["byEmail/"+encodeEmailForFirebase(email)] = uid;
+                // Aggiungi anche la versione non codificata per compatibilità con Google login
+                updates["byEmail/"+email.toLowerCase()] = uid;
                 if (phone) {
                   updates["byPhone/"+phone] = uid;
                   console.log('Storing phone in byPhone index:', phone, 'for UID:', uid);
